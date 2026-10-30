@@ -32,6 +32,10 @@ Data: 30.10.2026. Te decyzje mają pierwszeństwo przed DESIGN.md i ARCHITECTURE
 13b. Limit 3 modeli: gdy trening kończy się przy komplecie, online gracz dostaje modal „który model wycofać” (lista 4 modeli, w tym nowy, więc można odrzucić nowy). Offline i przy politykach: nowy wchodzi tylko, jeśli jest lepszy od najsłabszego; inaczej trafia do archiwum. Z archiwum gracz ręcznie wymienia model. Żaden model nie przepada bez decyzji gracza.
 14. Krytyki i karty w trybie ciągłym (cykl < 0.2 s): losowanie dla efektywnej liczby cykli **max 5/s na biznes** (nadwyżka liczona jako wartość oczekiwana bez losowania kart). Krytyki zbalansowane tak, by średni wkład był stały niezależnie od długości cyklu.
 
+14a. Dostawa kontraktów liczy stałą produkcję: bez combo, krytyków i boostów zdarzeń.
+14b. Inwestycja w etap AGI: Enter otwiera okno z porcjami (10%, 50%, 100% $, brakująca kwota) i potwierdzeniem.
+14c. Zatwierdzone interpretacje: regiony jako ekspansja (odblokowanie neutralne, US = x1, wszystkie regiony = x2.5); inwestycja i efekty AGI przetrwają prestiż 1 i rundę finansowania; runda finansowania zeruje wersję modelu i aktywne kontrakty; compliance Enterprise w US automatyczny (koszt 0).
+
 ## Styl kodu
 
 17. **Bez komentarzy w kodzie.** Dozwolone wyłącznie: krótki doc string na górze pliku (opis pakietu lub pliku) oraz krótki komentarz przy bardzo skomplikowanej logice biznesowej (np. wyprowadzenie wzoru). Komentarze nie mogą tłumaczyć, co robi kod. Każdy agent przy okazji usuwa istniejące komentarze łamiące tę zasadę w plikach, które dotyka. Komentarze w `balance.toml` opisujące znaczenie kluczy są dozwolone.

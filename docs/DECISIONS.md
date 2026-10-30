@@ -29,6 +29,7 @@ Data: 30.10.2026. Te decyzje mają pierwszeństwo przed DESIGN.md i ARCHITECTURE
 12. Globalne milestone'y: 25, 50, 100, potem **co 100 bez końca**, każdy x2. Liczy się minimum po **odblokowanych** biznesach; zdobyte x2 nie przepadają po odblokowaniu nowych tierów.
 13. Progi infra (`lifetime 1e7`) i prestiżu 1 (`run 1e12`) zostają jako liczby. Kolejność: najpierw infra, potem prestiż. Realne czasy mierzy symulator; cel strojenia: infra ok. 20 do 30 min, prestiż 1 ok. 1 h.
 13a. Progi bez pokrycia w DESIGN, zatwierdzone: zdarzenia losowe i karty od lifetime 1e7 (razem z infra), incydenty safety od 1e13 (razem z rynkiem), drzewko badań od 1e40 (razem z pierwszą rundą finansowania).
+13b. Limit 3 modeli: gdy trening kończy się przy komplecie, online gracz dostaje modal „który model wycofać” (lista 4 modeli, w tym nowy, więc można odrzucić nowy). Offline i przy politykach: nowy wchodzi tylko, jeśli jest lepszy od najsłabszego; inaczej trafia do archiwum. Z archiwum gracz ręcznie wymienia model. Żaden model nie przepada bez decyzji gracza.
 14. Krytyki i karty w trybie ciągłym (cykl < 0.2 s): losowanie dla efektywnej liczby cykli **max 5/s na biznes** (nadwyżka liczona jako wartość oczekiwana bez losowania kart). Krytyki zbalansowane tak, by średni wkład był stały niezależnie od długości cyklu.
 
 ## Styl kodu

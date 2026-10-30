@@ -12,7 +12,6 @@ func TestDeterministicAndIndependent(t *testing.T) {
 			t.Fatal("same seed diverged")
 		}
 	}
-	// Drawing from Crits must not move Events.
 	c := NewStreams(42)
 	if a.Events.Uint64() != c.Events.Uint64() {
 		t.Fatal("streams are not independent")

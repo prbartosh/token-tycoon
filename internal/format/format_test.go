@@ -12,7 +12,6 @@ import (
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
-// goldenValues covers 1 to 1e300: every power of ten plus a few mantissas.
 func goldenValues() []float64 {
 	var vs []float64
 	for e := 0; e <= 300; e++ {

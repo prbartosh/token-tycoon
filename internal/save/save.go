@@ -20,23 +20,15 @@ import (
 	"token-tycoon/internal/sim"
 )
 
-// CurrentVersion is the save format version written by this build.
-//
-//	1: docs/save.example.json (rng as draw counters, racks as a map)
-//	2: rng as serialized PCG states, racks as an array, unlocks list
 const CurrentVersion = 2
 
-// FileName is the save file name inside the config directory.
 const FileName = "save.json"
 
 var (
-	// ErrNoSave means neither the save nor any backup exists: start a new game.
-	ErrNoSave = errors.New("save: no save file")
-	// ErrNewerVersion means the file was written by a newer build.
+	ErrNoSave       = errors.New("save: no save file")
 	ErrNewerVersion = errors.New("save: file is from a newer version of the game")
 )
 
-// DefaultPath returns ~/.config/token-tycoon/save.json (or the OS equivalent).
 func DefaultPath() (string, error) {
 	dir, err := paths.ConfigDir()
 	if err != nil {
@@ -45,8 +37,6 @@ func DefaultPath() (string, error) {
 	return filepath.Join(dir, FileName), nil
 }
 
-// file is the on-disk layout. The embedded state contributes all fields that
-// serialize directly; the rest is mapped by id here.
 type file struct {
 	Version    int            `json:"version"`
 	SavedAt    time.Time      `json:"saved_at"`
@@ -56,13 +46,11 @@ type file struct {
 	*sim.State
 }
 
-// Options tune Save.
 type Options struct {
-	Backups int  // rotating backups to keep (balance engine.backups)
-	Indent  bool // pretty-print (debug)
+	Backups int
+	Indent  bool
 }
 
-// Marshal encodes a state into the current file format.
 func Marshal(s *sim.State, b *balance.Balance, savedAt time.Time, indent bool) ([]byte, error) {
 	f := file{Version: CurrentVersion, SavedAt: savedAt.UTC(), State: s}
 	f.Businesses = make([]sim.Business, 0, sim.N)
@@ -87,7 +75,6 @@ func Marshal(s *sim.State, b *balance.Balance, savedAt time.Time, indent bool) (
 	return json.Marshal(f)
 }
 
-// Unmarshal decodes any supported version, migrating it to the current one.
 func Unmarshal(data []byte, b *balance.Balance) (*sim.State, time.Time, error) {
 	var raw map[string]any
 	dec := json.NewDecoder(bytes.NewReader(data))
@@ -155,9 +142,6 @@ func check(s *sim.State) error {
 	return nil
 }
 
-// Save writes s atomically: temp file, fsync, rotate backups
-// (path.2 -> path.3, path.1 -> path.2, path linked as path.1), rename over
-// path. The main file is never missing: rename replaces it atomically.
 func Save(path string, s *sim.State, b *balance.Balance, savedAt time.Time, o Options) error {
 	data, err := Marshal(s, b, savedAt, o.Indent)
 	if err != nil {
@@ -201,7 +185,7 @@ func writeSync(name string, data []byte) error {
 
 func syncDir(dir string) {
 	if d, err := os.Open(dir); err == nil {
-		_ = d.Sync() // best effort; not supported everywhere
+		_ = d.Sync()
 		d.Close()
 	}
 }
@@ -217,9 +201,6 @@ func rotate(path string, backups int) error {
 			return err
 		}
 	}
-	// Keep path in place (hard link) so a crash before the final rename
-	// still leaves the previous save at path; fall back to a rename where
-	// links are not supported (Load then falls back to path.1).
 	b1 := backupName(path, 1)
 	if err := os.Remove(b1); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -240,20 +221,15 @@ func renameIfExists(from, to string) error {
 	return err
 }
 
-// Loaded is the result of Load.
 type Loaded struct {
 	State   *sim.State
 	SavedAt time.Time
-	Source  string  // file actually loaded
-	Skipped []error // why earlier candidates were rejected (corrupt files)
+	Source  string
+	Skipped []error
 }
 
-// Recovered reports whether a backup was used because the main file failed.
 func (l *Loaded) Recovered() bool { return len(l.Skipped) > 0 }
 
-// Load reads path, falling back to path.1 .. path.<backups> when a file is
-// missing or corrupt. It returns ErrNoSave if nothing exists and
-// ErrNewerVersion without falling back if a file is from a newer build.
 func Load(path string, b *balance.Balance, backups int) (*Loaded, error) {
 	cands := []string{path}
 	for n := 1; n <= backups; n++ {

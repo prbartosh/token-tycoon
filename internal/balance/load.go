@@ -17,12 +17,8 @@ import (
 //go:embed balance.toml
 var defaultTOML []byte
 
-// OverrideFileName is the name of the optional local override file inside the
-// config directory.
 const OverrideFileName = "balance.toml"
 
-// Default returns the embedded balance. It panics if the embedded file is
-// invalid, which tests guarantee never happens.
 func Default() *Balance {
 	b, err := Parse(defaultTOML, nil)
 	if err != nil {
@@ -31,11 +27,8 @@ func Default() *Balance {
 	return b
 }
 
-// DefaultTOML returns a copy of the embedded file.
 func DefaultTOML() []byte { return bytes.Clone(defaultTOML) }
 
-// Load returns the embedded balance merged with the local override at
-// ~/.config/token-tycoon/balance.toml, if that file exists.
 func Load() (*Balance, error) {
 	dir, err := paths.ConfigDir()
 	if err != nil {
@@ -44,8 +37,6 @@ func Load() (*Balance, error) {
 	return LoadWithOverride(filepath.Join(dir, OverrideFileName))
 }
 
-// LoadWithOverride merges the embedded balance with the file at path. A missing
-// file is not an error; an empty path means no override.
 func LoadWithOverride(path string) (*Balance, error) {
 	if path == "" {
 		return Parse(defaultTOML, nil)
@@ -64,10 +55,6 @@ func LoadWithOverride(path string) (*Balance, error) {
 	return b, nil
 }
 
-// Parse decodes base, merges override (may be nil) on top and validates the
-// result. Override semantics: tables merge key by key; arrays of tables whose
-// elements carry an "id" (or "gen") key merge element by element, unknown ids
-// are appended; any other value, including plain arrays, replaces the base.
 func Parse(base, override []byte) (*Balance, error) {
 	doc := base
 	if len(override) > 0 {
@@ -131,8 +118,6 @@ func mergeTables(dst, src map[string]any) {
 	}
 }
 
-// mergeArrayOfTables merges src into dst by "id" or "gen" if every element of
-// both arrays is a table carrying that key. It reports false otherwise.
 func mergeArrayOfTables(dst, src []any) ([]any, bool) {
 	key := ""
 	for _, cand := range []string{"id", "gen"} {

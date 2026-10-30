@@ -15,12 +15,9 @@ type candidate struct {
 	idx  int
 	qty  int
 	cost float64
-	gain float64 // increase of the bot's effective $/s
+	gain float64
 }
 
-// effRate is the bot's effective income for a hypothetical state: automated
-// businesses at full expected value, manual ones at the efficiency the bot's
-// click latency allows (cycle / (cycle + latency)).
 func (bt *bot) effRate(h *sim.Hypo, managers *[sim.N]bool, d *sim.Derived) float64 {
 	sim.Evaluate(bt.b, h, d)
 	r := 0.0
@@ -38,8 +35,6 @@ func (bt *bot) effRate(h *sim.Hypo, managers *[sim.N]bool, d *sim.Derived) float
 	return r
 }
 
-// candidates lists purchases worth considering: one unit and "up to the next
-// milestone" of every unlocked business, every missing manager and upgrade.
 func (bt *bot) candidates(out []candidate) ([]candidate, float64) {
 	s := &bt.s
 	b := bt.b
@@ -84,8 +79,6 @@ func (bt *bot) candidates(out []candidate) ([]candidate, float64) {
 		h.Upgrades.Set(ui)
 		gain := bt.effRate(&h, &mgr, &d) - r0
 		if b.Upgrades[ui].Effect == balance.EffectCost {
-			// A cost cut has no direct $/s gain. The bot spends roughly all
-			// income on purchases, so it is worth (1 - value) of the income.
 			gain = r0 * (1 - b.Upgrades[ui].Value)
 		}
 		out = append(out, candidate{cmd: sim.BuyUpgrade(ui), kind: sim.PurchaseUpgrade, idx: ui,
@@ -94,8 +87,6 @@ func (bt *bot) candidates(out []candidate) ([]candidate, float64) {
 	return out, r0
 }
 
-// score is the time until the purchase has paid for itself: time to afford
-// it at the current rate plus its payback time. Lower is better.
 func score(c *candidate, money, rate float64) float64 {
 	if !(c.gain > 0) {
 		return math.Inf(1)
@@ -110,10 +101,9 @@ func score(c *candidate, money, rate float64) float64 {
 	return wait + c.cost/c.gain
 }
 
-// decide makes purchases for this decision point.
 func (bt *bot) decide() {
 	var buf [64]candidate
-	for range 50 { // several purchases per decision when cash allows
+	for range 50 {
 		cands, rate := bt.candidates(buf[:0])
 		var pick *candidate
 		switch bt.cfg.Strategy {
@@ -139,9 +129,6 @@ func (bt *bot) decide() {
 				return
 			}
 			if pick.cost > bt.s.Money {
-				// While saving for the best option, take an affordable one
-				// that pays for itself before the best becomes affordable:
-				// it never delays the best purchase.
 				wait := (pick.cost - bt.s.Money) / rate
 				var filler *candidate
 				fb := wait

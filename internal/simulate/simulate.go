@@ -12,32 +12,20 @@ import (
 	"token-tycoon/internal/sim"
 )
 
-// Strategy names.
 const (
 	Greedy  = "greedy"
 	Passive = "passive"
 	Random  = "random"
 )
 
-// Config describes one simulator run.
 type Config struct {
-	Duration float64 // game seconds to simulate
-	Strategy string
-	Seed     uint64
-	// SessionS is the active time per day for the passive strategy (the rest
-	// of each day is offline catch-up). Default 600 (10m/day).
-	SessionS float64
-	// ComboRate is how many Space presses per second the bot makes while
-	// active. 0 (default) disables the combo. A plausible human rate is about
-	// 3 to 5 presses/s in short bursts; sustained for hours it is not
-	// plausible, so it stays opt-in.
-	ComboRate float64
-	// ClickLatencyS is how long a business without a manager stays idle
-	// before the bot starts its next manual cycle (human reaction plus
-	// attention switching). Default 0.5 s.
+	Duration      float64
+	Strategy      string
+	Seed          uint64
+	SessionS      float64
+	ComboRate     float64
 	ClickLatencyS float64
-	// StepS is the simulation step while active. Default 0.1 s (the game's).
-	StepS float64
+	StepS         float64
 }
 
 func (c *Config) defaults() {
@@ -55,7 +43,6 @@ func (c *Config) defaults() {
 	}
 }
 
-// Sample is one CSV row.
 type Sample struct {
 	T          float64
 	Money      float64
@@ -74,28 +61,24 @@ type Sample struct {
 	Online     bool
 }
 
-// Purchase records one bot purchase.
 type Purchase struct {
 	T    float64
 	Kind sim.PurchaseKind
-	Idx  int // business or upgrade index
+	Idx  int
 	Qty  int
 	Cost float64
 }
 
-// UnlockAt records when an unlock opened.
 type UnlockAt struct {
 	T      float64
 	Unlock sim.Unlock
 }
 
-// Session is one active session of the passive strategy.
 type Session struct {
 	StartT       float64
-	FirstUnlockT float64 // seconds after the session start, -1 if none
+	FirstUnlockT float64
 }
 
-// Result is everything a run produced.
 type Result struct {
 	Config        Config
 	Final         sim.State
@@ -103,37 +86,34 @@ type Result struct {
 	Purchases     []Purchase
 	Unlocks       []UnlockAt
 	Sessions      []Session
-	FirstManagerT float64 // -1 if not reached
-	InfraT        float64 // lifetime >= infra threshold
-	PrestigeT     float64 // run >= prestige threshold (and infra)
-	LongestFlat   float64 // longest gap without a purchase in the first hour
-	LongestFlatAt float64 // start of that gap
+	FirstManagerT float64
+	InfraT        float64
+	PrestigeT     float64
+	LongestFlat   float64
+	LongestFlatAt float64
 	OfflineS      float64
 	OfflineEarned float64
-	Businesses    int // business purchase commands
+	Businesses    int
 	Managers      int
 	UpgradesN     int
 }
 
 type bot struct {
-	cfg     Config
-	b       *balance.Balance
-	s       sim.State
-	res     *Result
-	evs     []sim.Event
-	cmds    []sim.Command
-	idle    [sim.N]float64 // seconds each manual business has been idle
-	pressAc float64
-	rnd     *rand.Rand
-	nextDec float64
-	nextSmp float64
-	session *Session
-	// flatHorizon ends the window of the flat-stretch check: the first hour
-	// of play, cut at the end of the first active span (passive strategy).
+	cfg         Config
+	b           *balance.Balance
+	s           sim.State
+	res         *Result
+	evs         []sim.Event
+	cmds        []sim.Command
+	idle        [sim.N]float64
+	pressAc     float64
+	rnd         *rand.Rand
+	nextDec     float64
+	nextSmp     float64
+	session     *Session
 	flatHorizon float64
 }
 
-// Run executes a simulation. It is deterministic for a given config.
 func Run(b *balance.Balance, cfg Config) (*Result, error) {
 	cfg.defaults()
 	switch cfg.Strategy {
@@ -171,14 +151,11 @@ func (bt *bot) runPassive() {
 			res, evs := sim.Offline(&bt.s, bt.b, day-bt.cfg.SessionS, bt.evs[:0])
 			bt.res.OfflineS += res.Simulated
 			bt.res.OfflineEarned += res.Earned
-			// The clock only advanced by the simulated (capped) time; the
-			// rest of the absence earned nothing.
 			bt.s.Clock += res.Elapsed - res.Simulated
 			offEvs = evs
 		}
 		bt.res.Sessions = append(bt.res.Sessions, Session{StartT: bt.s.Clock, FirstUnlockT: -1})
 		bt.session = &bt.res.Sessions[len(bt.res.Sessions)-1]
-		// Unlocks reached during the absence are shown at session start.
 		bt.observe(offEvs, bt.s.Clock)
 		if t > 0 {
 			bt.sample(true)
@@ -192,7 +169,6 @@ func (bt *bot) runPassive() {
 	}
 }
 
-// active plays for d seconds.
 func (bt *bot) active(d float64) {
 	end := bt.s.Clock + d
 	dt := bt.cfg.StepS
@@ -202,7 +178,6 @@ func (bt *bot) active(d float64) {
 		bt.clicks(step)
 		if bt.s.Clock >= bt.nextDec {
 			bt.decide()
-			// Decide often while purchases are cheap and frequent, less later.
 			every := 0.5
 			if bt.s.Clock > 3600 {
 				every = 2
@@ -215,7 +190,6 @@ func (bt *bot) active(d float64) {
 	}
 }
 
-// clicks issues manual starts and combo presses for this step.
 func (bt *bot) clicks(dt float64) {
 	for i := range sim.N {
 		bz := &bt.s.Businesses[i]

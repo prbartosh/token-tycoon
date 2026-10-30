@@ -1,16 +1,9 @@
 // Package balance loads, merges and validates the game's balance constants.
-//
-// The default file is embedded (balance.toml). A local file at
-// ~/.config/token-tycoon/balance.toml can override any subset of keys.
-// Every section of the file has a typed struct here, including systems that
-// later milestones implement, so those milestones only add logic.
+// The default file is embedded (balance.toml); a local file in the config dir can override any subset of keys.
 package balance
 
-// MaxBusinesses is the fixed number of business tiers. The simulation state
-// uses fixed arrays of this size.
 const MaxBusinesses = 10
 
-// Balance is the whole, validated balance file plus derived lookup tables.
 type Balance struct {
 	Meta             Meta             `toml:"meta"`
 	Engine           Engine           `toml:"engine"`
@@ -91,7 +84,7 @@ type Business struct {
 	CycleS         float64 `toml:"cycle_s"`
 	Tokens         float64 `toml:"tokens"`
 	Compute        float64 `toml:"compute"`
-	ManagerCost    float64 `toml:"manager_cost"` // 0 = Cost * ManagerMult
+	ManagerCost    float64 `toml:"manager_cost"`
 	UnlockLifetime float64 `toml:"unlock_lifetime"`
 }
 
@@ -106,7 +99,6 @@ type Milestones struct {
 	GlobalMult       float64 `toml:"global_mult"`
 }
 
-// Upgrade effects.
 const (
 	EffectProfit  = "profit"
 	EffectCost    = "cost"
@@ -117,7 +109,7 @@ const (
 type Upgrade struct {
 	ID     string   `toml:"id"`
 	Cost   float64  `toml:"cost"`
-	Target []string `toml:"target"` // business ids or ["all"]
+	Target []string `toml:"target"`
 	Effect string   `toml:"effect"`
 	Value  float64  `toml:"value"`
 }
@@ -189,7 +181,7 @@ type Rival struct {
 type Region struct {
 	ID               string  `toml:"id"`
 	MarketShare      float64 `toml:"market_share"`
-	Entry            string  `toml:"entry"` // none | compliance | datacenter
+	Entry            string  `toml:"entry"`
 	EntryCostMinutes float64 `toml:"entry_cost_minutes"`
 }
 
@@ -317,11 +309,10 @@ type Events struct {
 	IntervalS      []float64 `toml:"interval_s"`
 }
 
-// Event is a random event definition; fields not used by an effect stay zero.
 type Event struct {
 	ID             string  `toml:"id"`
 	Weight         float64 `toml:"weight"`
-	Effect         string  `toml:"effect"` // profit | card_chance | rack_cost | reaction | profit_tiers | hype
+	Effect         string  `toml:"effect"`
 	Value          float64 `toml:"value"`
 	DurationS      float64 `toml:"duration_s"`
 	Key            string  `toml:"key"`

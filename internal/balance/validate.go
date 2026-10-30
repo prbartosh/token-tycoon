@@ -66,8 +66,6 @@ func strictlyAscending(xs []int) bool {
 	return true
 }
 
-// Validate checks the balance for values the simulation cannot work with and
-// returns all problems joined, each prefixed with the key path.
 func (b *Balance) Validate() error {
 	v := &validator{}
 
@@ -99,7 +97,6 @@ func (b *Balance) Validate() error {
 		v.add("offline.cap_hours_start", "greater than cap_hours_max")
 	}
 
-	// Businesses.
 	if len(b.Businesses) != MaxBusinesses {
 		v.add("business", "need exactly %d [[business]] entries, got %d", MaxBusinesses, len(b.Businesses))
 	}
@@ -123,7 +120,6 @@ func (b *Balance) Validate() error {
 	v.positive("business_defaults.continuous_bar_below_s", bd.ContinuousBarBelowS)
 	v.positive("business_defaults.draw_cap_per_s", bd.DrawCapPerS)
 
-	// Start.
 	v.nonNeg("start.money", b.Start.Money)
 	if len(b.Start.FreeBusinesses) == 0 && b.Start.Money <= 0 {
 		v.add("start", "a new game needs either money > 0 or at least one free business")
@@ -137,7 +133,6 @@ func (b *Balance) Validate() error {
 		}
 	}
 
-	// Milestones.
 	m := b.Milestones
 	if !strictlyAscending(m.SpeedThresholds) || (len(m.SpeedThresholds) > 0 && m.SpeedThresholds[0] <= 0) {
 		v.add("milestones.speed_thresholds", "must be positive and strictly ascending")
@@ -161,7 +156,6 @@ func (b *Balance) Validate() error {
 		v.add("milestones.global_mult", "must be >= 1")
 	}
 
-	// Upgrades.
 	uids := make([]string, len(b.Upgrades))
 	for i, u := range b.Upgrades {
 		p := fmt.Sprintf("upgrade[%d](%s)", i, u.ID)
@@ -200,7 +194,6 @@ func (b *Balance) Validate() error {
 		v.add("upgrade", "at most 256 upgrades supported")
 	}
 
-	// Infra and GPU generations.
 	v.nonNeg("infra.unlock_lifetime", b.Infra.UnlockLifetime)
 	if !(b.Infra.StarterHeadroom >= 1) {
 		v.add("infra.starter_headroom", "must be >= 1")
@@ -236,7 +229,6 @@ func (b *Balance) Validate() error {
 	v.positive("energy.ppa_days", en.PPADays)
 	v.nonNeg("energy.orbital_unlock_lifetime", en.OrbitalUnlockLifetime)
 
-	// Market.
 	mk := b.Market
 	v.nonNeg("market.unlock_lifetime", mk.UnlockLifetime)
 	v.nonNeg("market.regions_unlock_lifetime", mk.RegionsUnlockLifetime)
@@ -278,7 +270,6 @@ func (b *Balance) Validate() error {
 		v.add("region.market_share", "shares must sum to 1, got %v", shareSum)
 	}
 
-	// Training and data.
 	t := b.Training
 	v.nonNeg("training.unlock_lifetime", t.UnlockLifetime)
 	v.positive("training.loss_A", t.LossA)
@@ -320,7 +311,6 @@ func (b *Balance) Validate() error {
 	v.nonNeg("investors.unlock_lifetime", b.Investors.UnlockLifetime)
 	v.rangePair("investors.target_growth", b.Investors.TargetGrowth)
 
-	// Prestige.
 	p1 := b.Prestige.Layer1
 	v.positive("prestige.layer1.unlock_run_revenue", p1.UnlockRunRevenue)
 	v.positive("prestige.layer1.param_coef", p1.ParamCoef)
@@ -352,7 +342,6 @@ func (b *Balance) Validate() error {
 	}
 	v.uniqueIDs("agi_stage", aids)
 
-	// Dopamine.
 	v.unit("crit.chance", b.Crit.Chance)
 	if !(b.Crit.Mult >= 1) {
 		v.add("crit.mult", "must be >= 1")

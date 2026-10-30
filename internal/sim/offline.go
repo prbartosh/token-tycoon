@@ -6,32 +6,22 @@ import (
 	"token-tycoon/internal/balance"
 )
 
-// OfflineResult summarizes an offline catch-up for the "while you were away"
-// screen.
 type OfflineResult struct {
-	Elapsed    float64 // seconds the player was away
-	Simulated  float64 // seconds actually simulated (capped)
-	Earned     float64 // $ earned while away
-	Efficiency float64 // revenue multiplier applied
+	Elapsed    float64
+	Simulated  float64
+	Earned     float64
+	Efficiency float64
 	Steps      int
 }
 
-// OfflineCapS is the current offline cap in seconds.
 func OfflineCapS(s *State, b *balance.Balance) float64 {
-	// Research raises the cap towards cap_hours_max in M4.
 	return b.Offline.CapHoursStart * 3600
 }
 
-// OfflineEfficiency is the current offline revenue multiplier.
 func OfflineEfficiency(s *State, b *balance.Balance) float64 {
-	// Research raises it towards efficiency_max in M4.
 	return b.Offline.EfficiencyStart
 }
 
-// Offline catches up `elapsed` seconds of absence (ARCHITECTURE 5): capped to
-// the offline limit, simulated in offline_step_s steps with expected-value
-// crits, no combo and revenue times the offline efficiency. Unlock events are
-// appended to out; cycle and crit events are not emitted.
 func Offline(s *State, b *balance.Balance, elapsed float64, out []Event) (OfflineResult, []Event) {
 	res := OfflineResult{Elapsed: math.Max(0, elapsed), Efficiency: OfflineEfficiency(s, b)}
 	res.Simulated = math.Min(res.Elapsed, OfflineCapS(s, b))

@@ -1,7 +1,6 @@
 package i18n
 
 var en = map[string]string{
-	// Game and tabs.
 	"game.title":     "TOKEN TYCOON",
 	"tab.businesses": "Businesses",
 	"tab.models":     "Models",
@@ -12,7 +11,6 @@ var en = map[string]string{
 	"tab.stats":      "Stats",
 	"tab.new":        "NEW",
 
-	// Key help (DECISIONS 15, 16).
 	"key.select":   "↑↓/k j select",
 	"key.tabs":     "←→/1-7 tabs",
 	"key.buy":      "Enter buy",
@@ -26,7 +24,6 @@ var en = map[string]string{
 	"key.quit":     "q quit",
 	"qty.max":      "MAX",
 
-	// Businesses.
 	"business.api_wrapper":          "API Wrapper",
 	"business.api_wrapper.desc":     "A thin layer over someone else's API. Everyone starts somewhere.",
 	"business.rag_chatbot":          "RAG Chatbot",
@@ -48,7 +45,6 @@ var en = map[string]string{
 	"business.frontier_lab":         "Frontier Lab",
 	"business.frontier_lab.desc":    "A lab at the edge of the possible. And of the budget.",
 
-	// Managers (DESIGN 4.2: name and one-liner).
 	"manager.api_wrapper":          "Agent Ping",
 	"manager.api_wrapper.line":     "Retries requests before you can blink.",
 	"manager.rag_chatbot":          "Agent Retrieva",
@@ -70,7 +66,6 @@ var en = map[string]string{
 	"manager.frontier_lab":         "Agent Scale",
 	"manager.frontier_lab.line":    "More parameters will fix it.",
 
-	// Upgrades.
 	"upgrade.prompt_caching":      "Prompt Caching",
 	"upgrade.prompt_caching.desc": "API Wrapper and RAG Chatbot x3 revenue",
 	"upgrade.quant_4bit":          "4-bit Quantization",
@@ -90,7 +85,6 @@ var en = map[string]string{
 	"upgrade.distillation":        "Distillation",
 	"upgrade.distillation.desc":   "Tiers 1 to 4 x5 revenue",
 
-	// Cards and rarities.
 	"card.dropout":     "Dropout",
 	"card.adam":        "Adam Optimizer",
 	"card.lora_paper":  "LoRA",
@@ -103,7 +97,6 @@ var en = map[string]string{
 	"rarity.epic":      "Epic",
 	"rarity.legendary": "Legendary",
 
-	// Events.
 	"event.viral_demo":          "Viral Demo",
 	"event.viral_demo.desc":     "Revenue x%s for %s",
 	"event.benchmark_leak":      "Benchmark Leak",
@@ -119,7 +112,6 @@ var en = map[string]string{
 	"event.conference":          "Conference",
 	"event.conference.desc":     "Hype +50%% for %s",
 
-	// Rivals, regions, rounds, talent, AGI.
 	"rival.northwind":   "Northwind",
 	"rival.openweights": "OpenWeights",
 	"rival.dragonfly":   "Dragonfly",
@@ -146,7 +138,6 @@ var en = map[string]string{
 	"agi.training":      "Training",
 	"agi.evaluation":    "Evaluation",
 
-	// Unlocks.
 	"unlock.business":  "Business: %s",
 	"unlock.infra":     "Infrastructure",
 	"unlock.prestige1": "Prestige: new model version",
@@ -166,7 +157,6 @@ var en = map[string]string{
 	"unlock.events":    "Random events",
 	"unlock.cards":     "Research cards",
 
-	// Messages for the animation layer and toasts.
 	"msg.crit":             "TOKEN BURST! x%s",
 	"msg.milestone.speed":  "%s: %d units, cycle x%s",
 	"msg.milestone.profit": "%s: %d units, revenue x%s",
@@ -184,7 +174,6 @@ var en = map[string]string{
 	"msg.save_recovered":   "The main save was corrupt, loaded backup %s",
 	"msg.save_new":         "New game",
 
-	// Command line.
 	"cli.ui_in_m1":           "The game UI arrives in milestone M1. The balance simulator works now: token-tycoon --simulate 1h",
 	"cli.bad_duration":       "Invalid duration %q (examples: 90s, 10m, 1h, 1d, 30d)",
 	"cli.bad_strategy":       "Unknown strategy %q (greedy, passive, random)",
@@ -204,7 +193,6 @@ var en = map[string]string{
 	"cli.flag.lang":          "language: pl | en (default from LANG)",
 	"cli.flag.ci":            "simulator: exit with code 1 when acceptance criteria fail",
 
-	// Simulator report.
 	"report.title":         "Simulator report",
 	"report.strategy":      "Strategy: %s, seed %d, game time %s",
 	"report.sessions":      "Sessions: %s active per day, the rest offline (efficiency %s)",

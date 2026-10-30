@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// ParseDuration parses "90s", "10m", "1h", "1.5d", "30d" into seconds.
 func ParseDuration(s string) (float64, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	if len(s) < 2 {
@@ -23,7 +22,6 @@ func ParseDuration(s string) (float64, error) {
 	return v * mult, nil
 }
 
-// ParseSessions parses "10m/day" (or "10m/d", "10m") into active seconds per day.
 func ParseSessions(s string) (float64, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	if i := strings.IndexByte(s, '/'); i >= 0 {

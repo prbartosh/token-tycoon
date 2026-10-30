@@ -17,7 +17,6 @@ import (
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	// The language is needed before parsing, for the translated flag help.
 	cat := i18n.New(i18n.Detect(langArg(args), ""))
 	fs := flag.NewFlagSet("token-tycoon", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -107,8 +106,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// langArg returns the value of -lang/--lang in args ("" if absent), in any of
-// the forms the flag package accepts: -lang x, --lang x, -lang=x, --lang=x.
 func langArg(args []string) string {
 	for i, a := range args {
 		if a == "--" {

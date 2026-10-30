@@ -36,7 +36,6 @@ func TestNewGame(t *testing.T) {
 	if !s.IsUnlocked(UnlockBusiness0) || s.IsUnlocked(UnlockBusiness0+6) || s.IsUnlocked(UnlockInfra) {
 		t.Fatal("initial unlocks wrong")
 	}
-	// Nothing happens without input: no manager.
 	run(&s, b, 5, nil)
 	if s.Money != 0 {
 		t.Fatalf("idle wrapper earned %v", s.Money)
@@ -46,7 +45,6 @@ func TestNewGame(t *testing.T) {
 func TestManualCycleAndPrimary(t *testing.T) {
 	b := bal(t)
 	s := NewState(b, 1)
-	// Enter on an unaffordable business without a manager starts its cycle.
 	evs := Step(&s, b, 0.1, []Command{Primary(0, 1)}, nil)
 	if !s.Businesses[0].Running || evs[0].Kind != EvStart {
 		t.Fatalf("primary did not start: %+v", evs)
@@ -55,7 +53,6 @@ func TestManualCycleAndPrimary(t *testing.T) {
 	if s.Businesses[0].Running {
 		t.Fatal("manual cycle should stop after one cycle")
 	}
-	// One cycle: 1 token * $1, possibly a crit (x10).
 	if s.Money != 1 && s.Money != 10 {
 		t.Fatalf("money after one cycle = %v", s.Money)
 	}
@@ -76,12 +73,10 @@ func TestBuyManagerAndUndo(t *testing.T) {
 	if s.Businesses[0].Manager || s.Money != 100 || evs[0].Kind != EvUndo {
 		t.Fatalf("undo: %+v money %v", evs, s.Money)
 	}
-	// Undo is single-level.
 	evs = Step(&s, b, 0.1, []Command{UndoLast()}, evs[:0])
 	if evs[0].Kind != EvRejected || evs[0].Reason != RejectNothingToUndo {
 		t.Fatalf("second undo: %+v", evs)
 	}
-	// Undo window expires after undo_window_s.
 	Step(&s, b, 0.1, []Command{Buy(0, 1)}, nil)
 	run(&s, b, 5.2, nil)
 	evs = Step(&s, b, 0.1, []Command{UndoLast()}, evs[:0])
@@ -113,12 +108,10 @@ func TestBulkBuyAndMilestones(t *testing.T) {
 	if s.Derived.CycleS[0] != 0.5 {
 		t.Fatalf("cycle %v, want 0.5", s.Derived.CycleS[0])
 	}
-	// x10 that is not affordable is rejected with the shortfall.
 	evs = Step(&s, b, 0, []Command{Buy(1, Qty10)}, evs[:0])
 	if evs[0].Kind != EvRejected || evs[0].Reason != RejectCannotAfford || !(evs[0].Amount > 0) {
 		t.Fatalf("x10: %+v", evs)
 	}
-	// Locked business.
 	s.Money = 1e12
 	evs = Step(&s, b, 0, []Command{Buy(6, 1)}, evs[:0])
 	if evs[0].Reason != RejectLocked {
@@ -134,7 +127,6 @@ func TestGlobalMilestones(t *testing.T) {
 	}
 	var d Derived
 	Evaluate(b, &h, &d)
-	// 25, 50, 100, 200 -> 4 global milestones.
 	if d.GlobalMS != 4 || d.GlobalMult != 16 {
 		t.Fatalf("global %d x%v", d.GlobalMS, d.GlobalMult)
 	}
@@ -202,7 +194,6 @@ func TestComboBoost(t *testing.T) {
 	}
 }
 
-// TestComboMultipliesRevenue checks that the combo multiplies all revenue.
 func TestComboMultipliesRevenue(t *testing.T) {
 	b := balanceNoCrit(t)
 	s := NewState(b, 1)
@@ -229,15 +220,13 @@ func balanceNoCrit(t testing.TB) *balance.Balance {
 	return b
 }
 
-// TestCritCapContinuous: in continuous mode at most draw_cap_per_s cycles per
-// second are rolled, and the average contribution matches the expected value.
 func TestCritCapContinuous(t *testing.T) {
 	b := bal(t)
 	s := NewState(b, 7)
-	s.Businesses[0].Owned = 100 // 3 speed milestones: 0.125 s
+	s.Businesses[0].Owned = 100
 	s.Businesses[0].Manager = true
 	si, _ := b.UpgradeIndex("spec_decoding")
-	s.Upgrades.Set(si) // 0.09375 s, continuous
+	s.Upgrades.Set(si)
 	Recompute(&s, b)
 	if !s.Derived.Continuous[0] {
 		t.Fatal("expected continuous mode")
@@ -256,14 +245,12 @@ func TestCritCapContinuous(t *testing.T) {
 	if perS := float64(rolled) / secs; perS > b.BusinessDefaults.DrawCapPerS+0.01 {
 		t.Fatalf("rolled %.2f cycles/s, cap %v", perS, b.BusinessDefaults.DrawCapPerS)
 	}
-	want := s.Derived.PerSec[0] * secs // PerSec already includes crit EV
+	want := s.Derived.PerSec[0] * secs
 	if rel := math.Abs(s.Money-want) / want; rel > 0.01 {
 		t.Fatalf("continuous revenue %v vs EV %v (%.2f%%)", s.Money, want, rel*100)
 	}
 }
 
-// TestCritAverageIndependentOfCycle: the long-run crit share is the same for
-// a slow business with all cycles rolled.
 func TestCritAverageIndependentOfCycle(t *testing.T) {
 	b := bal(t)
 	s := NewState(b, 3)
@@ -317,7 +304,7 @@ func TestUnlocksByRevenue(t *testing.T) {
 	b := bal(t)
 	s := NewState(b, 1)
 	s.Lifetime.Total = 1e7
-	s.Lifetime.Run = 1e12 // prestige needs infra, which unlocks in the same pass first
+	s.Lifetime.Run = 1e12
 	evs := Step(&s, b, 0.1, nil, nil)
 	got := map[Unlock]bool{}
 	for _, e := range evs {
@@ -389,7 +376,6 @@ func BenchmarkStep(bm *testing.B) {
 	}
 }
 
-// BenchmarkOffline24h: target < 200 ms (ARCHITECTURE 5).
 func BenchmarkOffline24h(bm *testing.B) {
 	b, err := balance.Parse(balance.DefaultTOML(), []byte("[offline]\ncap_hours_start = 24\n"))
 	if err != nil {
@@ -418,7 +404,7 @@ func TestOffline24hFast(t *testing.T) {
 func TestPrimaryRunningUnaffordableReportsShortfall(t *testing.T) {
 	b := bal(t)
 	s := NewState(b, 1)
-	Step(&s, b, 0, []Command{Primary(0, 1)}, nil) // starts the cycle
+	Step(&s, b, 0, []Command{Primary(0, 1)}, nil)
 	evs := Step(&s, b, 0, []Command{Primary(0, 1)}, nil)
 	if len(evs) != 1 || evs[0].Kind != EvRejected || evs[0].Reason != RejectCannotAfford || !(evs[0].Amount > 0) {
 		t.Fatalf("second Enter while running: %+v", evs)
@@ -437,7 +423,6 @@ func TestGlobalMilestoneEventThreshold(t *testing.T) {
 	s.Businesses[0].Owned = 20
 	Recompute(&s, b)
 	s.Money = 1e300
-	// 20 -> 60 on the last business: min owned 30, one global milestone at 25.
 	evs := Step(&s, b, 0, []Command{Buy(0, 40)}, nil)
 	found := false
 	for _, e := range evs {

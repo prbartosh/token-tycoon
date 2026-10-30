@@ -7,18 +7,13 @@ import (
 	"token-tycoon/internal/econ"
 )
 
-// mode distinguishes interactive steps from offline catch-up.
 type mode struct {
-	offline    bool    // expected-value crits, no combo, offline time
-	efficiency float64 // revenue multiplier (offline efficiency)
+	offline    bool
+	efficiency float64
 }
 
 var online = mode{efficiency: 1}
 
-// Step advances the game by dt seconds after applying cmds in order. It
-// appends emitted events to out and returns it; pass a reused slice
-// (out[:0]) to avoid allocations. Step is deterministic: the same state,
-// balance, dt and commands always produce the same result.
 func Step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event) []Event {
 	return step(s, b, dt, cmds, out, online)
 }
@@ -32,7 +27,6 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 		return out
 	}
 
-	// Combo decay (DECISIONS 16): back to 1 after decay_after_s of silence.
 	if md.offline {
 		s.Combo.Mult, s.Combo.IdleS = 1, 0
 	} else if s.Combo.Mult > 1 {
@@ -66,8 +60,6 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 			n = 1
 			bz.Progress, bz.Running = 0, false
 		}
-		// DECISIONS 14: roll at most DrawBudget cycles, the surplus is
-		// credited at expected value. Offline everything is expected value.
 		rolled := 0.0
 		if !md.offline {
 			rolled = math.Min(n, math.Floor(bz.DrawBudget))
@@ -141,8 +133,6 @@ func apply(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 		}
 		_, cost := ResolveQty(s, b, c.Business, c.Qty)
 		bz := &s.Businesses[c.Business]
-		// Unaffordable and idle without a manager: start the cycle. If it is
-		// already running, fall through so the rejection reports the shortfall.
 		if cost > s.Money && bz.Owned > 0 && !bz.Manager && !bz.Running &&
 			s.IsUnlocked(UnlockBusiness0+Unlock(c.Business)) {
 			return start(s, c, out, true)
@@ -154,8 +144,6 @@ func apply(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 	return reject(out, c, RejectInvalid, 0)
 }
 
-// start begins a manual cycle. With report=false a no-op is silent (Space on
-// a business that cannot start must not produce a rejection).
 func start(s *State, c *Command, out []Event, report bool) []Event {
 	if !validBusiness(c.Business) {
 		if report {
@@ -244,7 +232,7 @@ func buyManager(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 	}
 	s.Money -= cost
 	bz.Manager = true
-	bz.Running = false // the manager continues the current cycle
+	bz.Running = false
 	s.Stats.Purchases++
 	s.Undo = Undo{Kind: PurchaseManager, Business: i, Cost: cost, AtS: s.Clock}
 	Recompute(s, b)

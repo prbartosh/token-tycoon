@@ -1,15 +1,11 @@
 package balance
 
-// MaxGPUGens bounds the number of GPU generations (fixed array in the state).
 const MaxGPUGens = 8
 
-// TargetMask is a bit set over business indexes (bit i = business i).
 type TargetMask uint16
 
-// AllBusinesses has a bit for every business.
 const AllBusinesses TargetMask = 1<<MaxBusinesses - 1
 
-// Has reports whether business i is targeted.
 func (m TargetMask) Has(i int) bool { return m&(1<<uint(i)) != 0 }
 
 type index struct {
@@ -43,26 +39,20 @@ func (b *Balance) buildIndex() {
 	}
 }
 
-// BusinessIndex returns the index of a business id.
 func (b *Balance) BusinessIndex(id string) (int, bool) {
 	i, ok := b.idx.business[id]
 	return i, ok
 }
 
-// UpgradeIndex returns the index of an upgrade id.
 func (b *Balance) UpgradeIndex(id string) (int, bool) {
 	i, ok := b.idx.upgrade[id]
 	return i, ok
 }
 
-// UpgradeMask returns the set of businesses an upgrade affects.
 func (b *Balance) UpgradeMask(i int) TargetMask { return b.idx.upgradeMask[i] }
 
-// FreeOwned returns how many units of each business a new game starts with.
 func (b *Balance) FreeOwned() [MaxBusinesses]int { return b.idx.freeOwned }
 
-// ManagerCost returns the manager price of business i: the explicit
-// manager_cost if set, else cost * manager_mult.
 func (b *Balance) ManagerCost(i int) float64 {
 	bs := b.Businesses[i]
 	if bs.ManagerCost > 0 {

@@ -41,13 +41,11 @@ func TestRoundTrip(t *testing.T) {
 	if !l.SavedAt.Equal(at) || l.Source != path || l.Recovered() {
 		t.Fatalf("meta: %v %s %v", l.SavedAt, l.Source, l.Skipped)
 	}
-	// Transient fields are rebuilt on load; compare after normalizing both.
 	sim.Normalize(&s, b)
 	s.Undo, got.Undo = sim.Undo{}, sim.Undo{}
 	if !reflect.DeepEqual(s, got) {
 		t.Fatalf("round trip mismatch\nwant %+v\ngot  %+v", s, got)
 	}
-	// Restored RNG continues the same sequence.
 	a, c := s, got
 	for range 1000 {
 		sim.Step(&a, b, 0.1, nil, nil)
@@ -79,7 +77,6 @@ func TestRotationAndCorruptFallback(t *testing.T) {
 	if _, err := os.Stat(path + ".tmp"); err == nil {
 		t.Fatal("temp file left behind")
 	}
-	// Corrupt main file: the newest backup is used.
 	if err := os.WriteFile(path, []byte(`{"version": 2, "money": `), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +87,6 @@ func TestRotationAndCorruptFallback(t *testing.T) {
 	if l.Source != path+".1" || !l.Recovered() || l.State.Money != 3 {
 		t.Fatalf("fallback: source %s money %v", l.Source, l.State.Money)
 	}
-	// Semantically invalid file (negative money) also falls back.
 	if err := os.WriteFile(path+".1", []byte(`{"version":2,"seed":1,"money":-5}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +94,6 @@ func TestRotationAndCorruptFallback(t *testing.T) {
 	if err != nil || l.Source != path+".2" || l.State.Money != 2 {
 		t.Fatalf("fallback to .2: %v %+v", err, l)
 	}
-	// Everything corrupt.
 	for _, n := range []string{".2", ".3"} {
 		os.WriteFile(path+n, []byte("garbage"), 0o644)
 	}
@@ -153,12 +148,10 @@ func TestMigrateV1Example(t *testing.T) {
 	if len(s.Rules) != 1 || !s.Rules[0].Enabled || len(s.Training.Queue[0].Arch) != 1 {
 		t.Fatalf("rules/training: %+v %+v", s.Rules, s.Training)
 	}
-	// Migration is deterministic.
 	s2, _, _ := Unmarshal(data, b)
 	if !reflect.DeepEqual(s.RNG, s2.RNG) {
 		t.Fatal("migrated RNG differs between loads")
 	}
-	// And the result saves as the current version.
 	out, err := Marshal(s, b, savedAt, false)
 	if err != nil {
 		t.Fatal(err)
@@ -172,8 +165,6 @@ func TestMigrateV1Example(t *testing.T) {
 	}
 }
 
-// A game saved and loaded mid-run continues exactly like the uninterrupted
-// one, including the crit draw budget of continuous businesses.
 func TestLoadedGameContinuesIdentically(t *testing.T) {
 	b := balance.Default()
 	s := sim.NewState(b, 7)
@@ -203,7 +194,6 @@ func TestLoadedGameContinuesIdentically(t *testing.T) {
 	}
 }
 
-// Rotation keeps the main file in place until the new one replaces it.
 func TestRotationKeepsPreviousAsBackup(t *testing.T) {
 	b := balance.Default()
 	path := filepath.Join(t.TempDir(), "save.json")

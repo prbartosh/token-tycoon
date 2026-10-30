@@ -1,7 +1,6 @@
 package i18n
 
 var pl = map[string]string{
-	// Game and tabs.
 	"game.title":     "TOKEN TYCOON",
 	"tab.businesses": "Biznesy",
 	"tab.models":     "Modele",
@@ -12,7 +11,6 @@ var pl = map[string]string{
 	"tab.stats":      "Statystyki",
 	"tab.new":        "NOWE",
 
-	// Key help (DECISIONS 15, 16).
 	"key.select":   "↑↓/k j wybór",
 	"key.tabs":     "←→/1-7 zakładki",
 	"key.buy":      "Enter kup",
@@ -26,7 +24,6 @@ var pl = map[string]string{
 	"key.quit":     "q wyjście",
 	"qty.max":      "MAX",
 
-	// Businesses.
 	"business.api_wrapper":          "Wrapper na API",
 	"business.api_wrapper.desc":     "Cienka nakładka na cudze API. Każdy od czegoś zaczynał.",
 	"business.rag_chatbot":          "Chatbot z RAG",
@@ -48,7 +45,6 @@ var pl = map[string]string{
 	"business.frontier_lab":         "Frontier lab",
 	"business.frontier_lab.desc":    "Laboratorium na granicy możliwości. I budżetu.",
 
-	// Managers (DESIGN 4.2: name and one-liner).
 	"manager.api_wrapper":          "Agent Ping",
 	"manager.api_wrapper.line":     "Ponawia zapytania, zanim zdążysz mrugnąć.",
 	"manager.rag_chatbot":          "Agentka Retrieva",
@@ -70,7 +66,6 @@ var pl = map[string]string{
 	"manager.frontier_lab":         "Agent Skalowanie",
 	"manager.frontier_lab.line":    "Więcej parametrów rozwiąże każdy problem.",
 
-	// Upgrades.
 	"upgrade.prompt_caching":      "Prompt caching",
 	"upgrade.prompt_caching.desc": "Wrapper i chatbot z RAG x3 przychodu",
 	"upgrade.quant_4bit":          "Kwantyzacja 4-bit",
@@ -90,7 +85,6 @@ var pl = map[string]string{
 	"upgrade.distillation":        "Destylacja",
 	"upgrade.distillation.desc":   "Tiery 1 do 4 x5 przychodu",
 
-	// Cards and rarities.
 	"card.dropout":     "Dropout",
 	"card.adam":        "Adam Optimizer",
 	"card.lora_paper":  "LoRA",
@@ -103,7 +97,6 @@ var pl = map[string]string{
 	"rarity.epic":      "Epicka",
 	"rarity.legendary": "Legendarna",
 
-	// Events.
 	"event.viral_demo":          "Viralowe demo",
 	"event.viral_demo.desc":     "Przychód x%s przez %s",
 	"event.benchmark_leak":      "Leak benchmarku",
@@ -119,7 +112,6 @@ var pl = map[string]string{
 	"event.conference":          "Konferencja",
 	"event.conference.desc":     "Hype +50%% przez %s",
 
-	// Rivals, regions, rounds, talent, AGI.
 	"rival.northwind":   "Northwind",
 	"rival.openweights": "OpenWeights",
 	"rival.dragonfly":   "Dragonfly",
@@ -146,7 +138,6 @@ var pl = map[string]string{
 	"agi.training":      "Trening",
 	"agi.evaluation":    "Ewaluacja",
 
-	// Unlocks.
 	"unlock.business":  "Biznes: %s",
 	"unlock.infra":     "Infrastruktura",
 	"unlock.prestige1": "Prestiż: nowa wersja modelu",
@@ -166,7 +157,6 @@ var pl = map[string]string{
 	"unlock.events":    "Zdarzenia losowe",
 	"unlock.cards":     "Karty badań",
 
-	// Messages for the animation layer and toasts.
 	"msg.crit":             "TOKEN BURST! x%s",
 	"msg.milestone.speed":  "%s: %d szt., cykl x%s",
 	"msg.milestone.profit": "%s: %d szt., przychód x%s",
@@ -184,7 +174,6 @@ var pl = map[string]string{
 	"msg.save_recovered":   "Główny zapis był uszkodzony, wczytano kopię %s",
 	"msg.save_new":         "Nowa gra",
 
-	// Command line.
 	"cli.ui_in_m1":           "Interfejs gry pojawi się w etapie M1. Teraz działa symulator balansu: token-tycoon --simulate 1h",
 	"cli.bad_duration":       "Niepoprawny czas %q (przykłady: 90s, 10m, 1h, 1d, 30d)",
 	"cli.bad_strategy":       "Nieznana strategia %q (greedy, passive, random)",
@@ -204,7 +193,6 @@ var pl = map[string]string{
 	"cli.flag.lang":          "język: pl | en (domyślnie wg LANG)",
 	"cli.flag.ci":            "symulator: zakończ z kodem 1, gdy kryteria akceptacji nie są spełnione",
 
-	// Simulator report.
 	"report.title":         "Raport symulatora",
 	"report.strategy":      "Strategia: %s, seed %d, czas gry %s",
 	"report.sessions":      "Sesje: %s aktywnie dziennie, reszta offline (wydajność %s)",

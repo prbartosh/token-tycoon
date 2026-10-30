@@ -98,7 +98,6 @@ func TestMilestones(t *testing.T) {
 			t.Errorf("NextBiz(%d) = %d, want %d", c.owned, got, c.nextBiz)
 		}
 	}
-	// The n-th global milestone's threshold is consistent with the counter.
 	for n := 1; n <= 12; n++ {
 		th := GlobalThreshold(n, global, 100)
 		if GlobalMilestones(th, global, 100) != n || GlobalMilestones(th-1, global, 100) != n-1 {

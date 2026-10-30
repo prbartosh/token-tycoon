@@ -13,9 +13,6 @@ import (
 	"token-tycoon/internal/sim"
 )
 
-// WriteCSV writes the samples: time, $/s, $, params, capital, benchmark,
-// share, unlocks (ARCHITECTURE 9), plus lifetime, run, owned per tier,
-// managers, upgrades, combo and whether the player was online.
 func WriteCSV(w io.Writer, r *Result, b *balance.Balance) error {
 	cw := csv.NewWriter(w)
 	head := []string{"t_s", "income_per_s", "money", "params", "capital", "benchmark", "share", "unlocks",
@@ -43,14 +40,12 @@ func WriteCSV(w io.Writer, r *Result, b *balance.Balance) error {
 	return cw.Error()
 }
 
-// Check is one acceptance criterion result.
 type Check struct {
 	Text string
 	Pass bool
-	NA   bool // not measurable in this run
+	NA   bool
 }
 
-// Checks evaluates the DESIGN section 10 criteria measurable at M0.
 func Checks(r *Result, c *i18n.Catalog) []Check {
 	dur := func(t float64) string {
 		if t < 0 {
@@ -59,17 +54,13 @@ func Checks(r *Result, c *i18n.Catalog) []Check {
 		return format.Duration(t)
 	}
 	var out []Check
-	// 1. No flat stretch longer than 2 minutes in the first hour.
 	out = append(out, Check{
 		Text: c.T("report.crit.flat", format.Duration(r.LongestFlat), format.Duration(r.LongestFlatAt)),
 		Pass: r.LongestFlat <= 120,
 	})
-	// DESIGN 4.2: first manager within 30 to 60 s.
 	out = append(out, window(c.T("report.crit.manager", dur(r.FirstManagerT)), r.FirstManagerT, 30, 60, r.Config.Duration))
-	// DECISIONS 13: infrastructure about 20 to 30 min, prestige about 1 h.
 	out = append(out, window(c.T("report.crit.infra", dur(r.InfraT)), r.InfraT, 20*60, 30*60, r.Config.Duration))
 	out = append(out, window(c.T("report.crit.prestige", dur(r.PrestigeT)), r.PrestigeT, 45*60, 90*60, r.Config.Duration))
-	// Order: infrastructure first.
 	order := Check{Text: c.T("report.crit.order")}
 	switch {
 	case r.PrestigeT >= 0:
@@ -78,7 +69,6 @@ func Checks(r *Result, c *i18n.Catalog) []Check {
 		order.NA = true
 	}
 	out = append(out, order)
-	// Every session unlocks something new within 5 minutes (passive only).
 	if len(r.Sessions) > 0 {
 		ok := 0
 		for _, s := range r.Sessions {
@@ -91,8 +81,6 @@ func Checks(r *Result, c *i18n.Catalog) []Check {
 	return out
 }
 
-// window checks that t falls in [lo, hi]; not reached is a failure once the
-// run is longer than hi, otherwise not measurable.
 func window(text string, t, lo, hi, duration float64) Check {
 	if t < 0 {
 		if duration > hi {
@@ -103,8 +91,6 @@ func window(text string, t, lo, hi, duration float64) Check {
 	return Check{Text: text, Pass: t >= lo && t <= hi}
 }
 
-// Report prints a human-readable report and returns the number of failed
-// criteria.
 func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 	n := format.Letters
 	s := &r.Final

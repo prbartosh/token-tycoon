@@ -7,17 +7,13 @@ import (
 	"strings"
 )
 
-// Notation selects how large numbers are shown.
 type Notation uint8
 
 const (
-	// Letters uses K, M, B, T, then aa, ab, ... az, ba, ... (DESIGN 13.4).
 	Letters Notation = iota
-	// Scientific uses mantissa and exponent, e.g. 1.23e15.
 	Scientific
 )
 
-// ParseNotation maps a settings string to a Notation (default Letters).
 func ParseNotation(s string) Notation {
 	if s == "scientific" || s == "sci" {
 		return Scientific
@@ -25,7 +21,6 @@ func ParseNotation(s string) Notation {
 	return Letters
 }
 
-// String returns the settings name of the notation.
 func (n Notation) String() string {
 	if n == Scientific {
 		return "scientific"
@@ -35,8 +30,6 @@ func (n Notation) String() string {
 
 var named = [...]string{"", "K", "M", "B", "T"}
 
-// Suffix returns the suffix for the 1000^group magnitude (group >= 0):
-// "", K, M, B, T, aa, ab, ..., az, ba, ...
 func Suffix(group int) string {
 	if group < len(named) {
 		return named[group]
@@ -45,18 +38,13 @@ func Suffix(group int) string {
 	if i < 26*26 {
 		return string([]byte{byte('a' + i/26), byte('a' + i%26)})
 	}
-	// Beyond zz (1e2043) cannot happen in float64; keep a stable fallback.
 	return "e" + strconv.Itoa(group*3)
 }
 
-// Number formats v with three significant digits and a magnitude suffix.
-// Values below 1000 are shown as integers when whole, else with up to two
-// decimals.
 func Number(v float64, n Notation) string {
 	return string(AppendNumber(nil, v, n))
 }
 
-// AppendNumber is the allocation-friendly form of Number.
 func AppendNumber(dst []byte, v float64, n Notation) []byte {
 	switch {
 	case math.IsNaN(v):
@@ -73,7 +61,6 @@ func AppendNumber(dst []byte, v float64, n Notation) []byte {
 	if v < 1000 {
 		return appendSmall(dst, v)
 	}
-	// Three significant digits: mantissa d.dd and decimal exponent.
 	var buf [32]byte
 	s := strconv.AppendFloat(buf[:0], v, 'e', 2, 64)
 	mant, exp := splitE(s)
@@ -84,11 +71,9 @@ func AppendNumber(dst []byte, v float64, n Notation) []byte {
 	}
 	group := exp / 3
 	intDigits := exp%3 + 1
-	// mant is "d.dd": digits are mant[0], mant[2], mant[3].
 	digits := [3]byte{mant[0], mant[2], mant[3]}
 	dst = append(dst, digits[:intDigits]...)
 	frac := digits[intDigits:]
-	// Trim trailing zeros of the fraction.
 	for len(frac) > 0 && frac[len(frac)-1] == '0' {
 		frac = frac[:len(frac)-1]
 	}
@@ -135,10 +120,8 @@ func splitE(s []byte) ([]byte, int) {
 	return s[:i], exp
 }
 
-// Money formats v with a leading "$ ".
 func Money(v float64, n Notation) string { return "$ " + Number(v, n) }
 
-// Rate formats a per-second value, e.g. "+12.4M/s".
 func Rate(v float64, n Notation) string {
 	var b strings.Builder
 	if v >= 0 {
@@ -149,8 +132,6 @@ func Rate(v float64, n Notation) string {
 	return b.String()
 }
 
-// Duration formats seconds compactly: 45s, 2m14s, 1h05m, 3d04h. Negative or
-// NaN values render as "0s", infinite as "--".
 func Duration(sec float64) string {
 	if math.IsInf(sec, 0) || sec > 1e15 {
 		return "--"
@@ -159,7 +140,6 @@ func Duration(sec float64) string {
 		return "0s"
 	}
 	if sec < 10 {
-		// Sub-10-second values keep one decimal (cycle times like 0.5s).
 		s := strconv.FormatFloat(math.Round(sec*10)/10, 'f', -1, 64)
 		return s + "s"
 	}

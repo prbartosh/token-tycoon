@@ -1,8 +1,5 @@
 // Package rng provides deterministic, named random streams whose full state is
 // serializable, so a saved game resumes the exact same random sequence.
-//
-// Each stream is a PCG generator from math/rand/v2 held by value: copying a
-// Streams value copies the generator state, and drawing never allocates.
 package rng
 
 import (
@@ -12,45 +9,35 @@ import (
 	"math/rand/v2"
 )
 
-// Stream is one named PCG generator.
 type Stream struct {
 	pcg rand.PCG
 }
 
-// NewStream returns a stream seeded from seed and a stream key.
 func NewStream(seed, key uint64) Stream {
 	var s Stream
 	s.pcg.Seed(splitmix(seed^key), splitmix(seed+key*0x9E3779B97F4A7C15))
 	return s
 }
 
-// Uint64 returns the next raw value.
 func (s *Stream) Uint64() uint64 { return s.pcg.Uint64() }
 
-// Float64 returns a uniform value in [0, 1).
 func (s *Stream) Float64() float64 { return float64(s.pcg.Uint64()>>11) * (1.0 / (1 << 53)) }
 
-// Chance reports true with probability p.
 func (s *Stream) Chance(p float64) bool { return s.Float64() < p }
 
-// IntN returns a uniform value in [0, n). n must be > 0.
 func (s *Stream) IntN(n int) int {
-	// Lemire's multiply-shift; the tiny bias is irrelevant for a game.
 	hi, _ := mul64(s.pcg.Uint64(), uint64(n))
 	return int(hi)
 }
 
-// Range returns a uniform value in [lo, hi).
 func (s *Stream) Range(lo, hi float64) float64 { return lo + (hi-lo)*s.Float64() }
 
-// Skip advances the stream by n draws.
 func (s *Stream) Skip(n uint64) {
 	for range n {
 		s.pcg.Uint64()
 	}
 }
 
-// MarshalJSON encodes the generator state as a hex string.
 func (s Stream) MarshalJSON() ([]byte, error) {
 	b, err := s.pcg.MarshalBinary()
 	if err != nil {
@@ -59,7 +46,6 @@ func (s Stream) MarshalJSON() ([]byte, error) {
 	return json.Marshal(hex.EncodeToString(b))
 }
 
-// UnmarshalJSON restores a state written by MarshalJSON.
 func (s *Stream) UnmarshalJSON(data []byte) error {
 	var h string
 	if err := json.Unmarshal(data, &h); err != nil {
@@ -75,7 +61,6 @@ func (s *Stream) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Stream keys. Fixed forever: changing them changes every seeded game.
 const (
 	KeyEvents uint64 = iota + 1
 	KeyCrits
@@ -85,9 +70,6 @@ const (
 	KeyMisc
 )
 
-// Streams is the set of named streams kept in the game state. Separate
-// streams keep systems independent: drawing more crits never shifts which
-// events happen.
 type Streams struct {
 	Events Stream `json:"events"`
 	Crits  Stream `json:"crits"`
@@ -97,7 +79,6 @@ type Streams struct {
 	Misc   Stream `json:"misc"`
 }
 
-// NewStreams seeds every named stream from one game seed.
 func NewStreams(seed uint64) Streams {
 	return Streams{
 		Events: NewStream(seed, KeyEvents),

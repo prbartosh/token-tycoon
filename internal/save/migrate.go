@@ -9,7 +9,6 @@ import (
 	"token-tycoon/internal/rng"
 )
 
-// migrations[v] upgrades a raw version-v document to version v+1 in place.
 var migrations = map[int]func(raw map[string]any) error{
 	1: migrate1to2,
 }
@@ -38,8 +37,6 @@ func migrate(raw map[string]any) error {
 	return nil
 }
 
-// maxSkip bounds how far a v1 draw counter is replayed when rebuilding a
-// stream (keeps loading fast; the exact position does not matter for play).
 const maxSkip = 10_000_000
 
 var v1Streams = []struct {
@@ -50,9 +47,6 @@ var v1Streams = []struct {
 	{"rivals", rng.KeyRivals}, {"energy", rng.KeyEnergy}, {"misc", rng.KeyMisc},
 }
 
-// migrate1to2 turns v1 draw counters into PCG states (seed + replayed draws),
-// the racks map {"gen": n} into an array and adds the unlocks list (rebuilt
-// from lifetime revenue on load).
 func migrate1to2(raw map[string]any) error {
 	seed, err := uint64Of(raw["seed"])
 	if err != nil {

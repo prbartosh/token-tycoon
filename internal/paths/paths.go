@@ -7,13 +7,8 @@ import (
 	"runtime"
 )
 
-// AppDir is the per-user directory name of the game.
 const AppDir = "token-tycoon"
 
-// ConfigDir returns the directory holding save.json and the balance override:
-// %APPDATA%\token-tycoon on Windows, $XDG_CONFIG_HOME/token-tycoon or
-// ~/.config/token-tycoon elsewhere (macOS included, per DESIGN section 16).
-// It does not create the directory.
 func ConfigDir() (string, error) {
 	if runtime.GOOS == "windows" {
 		d, err := os.UserConfigDir()

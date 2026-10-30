@@ -7,35 +7,30 @@ import (
 	"token-tycoon/internal/econ"
 )
 
-// Derived holds values computed from the state and balance after every step.
-// The UI reads them; nothing here is saved.
 type Derived struct {
-	CycleS       [N]float64 // effective cycle length in seconds
-	PerCycle     [N]float64 // $ per completed cycle (no crit, no combo)
-	PerSec       [N]float64 // expected $/s when automated (crit EV, no combo)
-	ProfitMult   [N]float64 // business profit multiplier (upgrades and milestones)
-	CostMult     [N]float64 // purchase cost multiplier
-	SpeedMS      [N]int     // speed milestones reached
-	ProfitMS     [N]int     // profit milestones reached
-	Continuous   [N]bool    // cycle shorter than continuous_bar_below_s
-	GlobalMS     int        // global milestones reached
-	GlobalMult   float64    // global milestones * prestige params bonus
-	MinOwned     int        // smallest owned count over all businesses
-	CritEV       float64    // expected crit multiplier per cycle
-	Price        float64    // $ per token
-	ComboMult    float64    // current combo multiplier
-	IncomePerSec float64    // expected $/s of automated businesses incl. combo
+	CycleS       [N]float64
+	PerCycle     [N]float64
+	PerSec       [N]float64
+	ProfitMult   [N]float64
+	CostMult     [N]float64
+	SpeedMS      [N]int
+	ProfitMS     [N]int
+	Continuous   [N]bool
+	GlobalMS     int
+	GlobalMult   float64
+	MinOwned     int
+	CritEV       float64
+	Price        float64
+	ComboMult    float64
+	IncomePerSec float64
 }
 
-// Hypo is the input of Evaluate: the parts of the state that determine
-// income. The balance simulator uses it to price hypothetical purchases.
 type Hypo struct {
 	Owned    [N]int
 	Upgrades Bitset
 	Params   float64
 }
 
-// HypoOf extracts a Hypo from a state.
 func HypoOf(s *State) Hypo {
 	h := Hypo{Upgrades: s.Upgrades, Params: s.Prestige.Params}
 	for i := range s.Businesses {
@@ -44,8 +39,6 @@ func HypoOf(s *State) Hypo {
 	return h
 }
 
-// Evaluate fills d with cycle times, revenue per cycle and expected $/s for
-// the hypothetical h. Combo and IncomePerSec are left untouched.
 func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 	m := &b.Milestones
 	var cycleMult, profitMult, costMult [N]float64
@@ -96,7 +89,6 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 	}
 }
 
-// Recompute refreshes s.Derived from the state.
 func Recompute(s *State, b *balance.Balance) {
 	h := HypoOf(s)
 	Evaluate(b, &h, &s.Derived)
@@ -110,22 +102,16 @@ func Recompute(s *State, b *balance.Balance) {
 	s.Derived.IncomePerSec = inc * max(1, s.Combo.Mult)
 }
 
-// BusinessCost is the price of k more units of business i at the current
-// state (k >= 1).
 func BusinessCost(s *State, b *balance.Balance, i, k int) float64 {
 	bs := &b.Businesses[i]
 	return econ.BulkCost(bs.Cost*s.Derived.CostMult[i], bs.R, s.Businesses[i].Owned, k)
 }
 
-// MaxBuy is how many units of business i the current money buys.
 func MaxBuy(s *State, b *balance.Balance, i int) int {
 	bs := &b.Businesses[i]
 	return econ.MaxAffordable(s.Money, bs.Cost*s.Derived.CostMult[i], bs.R, s.Businesses[i].Owned)
 }
 
-// ResolveQty turns a requested quantity (QtyMax allowed) into a unit count
-// and its cost. For QtyMax with nothing affordable it returns 1 and the price
-// of one unit, so callers can show the shortfall.
 func ResolveQty(s *State, b *balance.Balance, i, qty int) (int, float64) {
 	if qty == QtyMax {
 		k := MaxBuy(s, b, i)
@@ -140,8 +126,6 @@ func ResolveQty(s *State, b *balance.Balance, i, qty int) (int, float64) {
 	return qty, BusinessCost(s, b, i, qty)
 }
 
-// UnlockETA estimates seconds until the lifetime threshold of u is reached at
-// the current automated income (+Inf if there is no income).
 func UnlockETA(s *State, b *balance.Balance, u Unlock) float64 {
 	t := UnlockThreshold(u, b)
 	have := s.Lifetime.Total

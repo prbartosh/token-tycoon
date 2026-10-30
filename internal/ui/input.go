@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"strings"
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"token-tycoon/internal/sim"
@@ -16,6 +19,9 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.away.open = false
 		m.anim.Counter.Jump(m.away.res.Earned)
 		return m, nil
+	}
+	if m.modal.kind != modalNone {
+		return m, m.modalKey(k)
 	}
 	if m.help {
 		switch k {
@@ -57,9 +63,22 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.exec(sim.Boost(m.selBusiness()))
 	case "u":
 		return m, m.exec(sim.UndoLast())
+	case "p":
+		m.openPrestige()
+		return m, nil
+	case "d":
+		if g := m.grant(); g.Claimable && g.Amount > 0 {
+			return m, m.exec(sim.ClaimGrant(m.today()))
+		}
+		return m, nil
+	case "h", "H", "g", "G":
+		if key := m.reactionKey(); key != "" && strings.EqualFold(key, k) {
+			return m, m.exec(sim.React(key))
+		}
+		return m, nil
 	}
 	if m.tab != tabBusinesses {
-		return m, nil
+		return m, m.tabKey(k)
 	}
 	switch k {
 	case "up", "k":
@@ -86,6 +105,18 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m *Model) today() string { return m.now().Format(time.DateOnly) }
+
+func (m *Model) grant() sim.GrantInfo { return sim.GrantPreview(m.s, m.b, m.today()) }
+
+func (m *Model) reactionKey() string {
+	i, left := sim.ActiveEvent(m.s, m.b)
+	if i < 0 || left <= 0 || m.b.Event[i].Key == "" {
+		return ""
+	}
+	return m.b.Event[i].Key
 }
 
 func onOff(prefix string, on bool) string {
@@ -135,6 +166,10 @@ func (m *Model) click(ms tea.Mouse) tea.Cmd {
 		m.help = false
 		return nil
 	}
+	if m.modal.kind == modalRelease {
+		m.modal = modal{}
+		return nil
+	}
 	if ms.Button != tea.MouseLeft {
 		return nil
 	}
@@ -148,7 +183,13 @@ func (m *Model) click(ms tea.Mouse) tea.Cmd {
 		return nil
 	}
 	g := m.geom()
-	if m.tab != tabBusinesses || ms.Y < topRows || ms.Y >= topRows+g.bodyH || ms.X < 1 || ms.X > g.listW {
+	if m.modal.kind != modalNone {
+		return nil
+	}
+	if m.tab != tabBusinesses {
+		return m.tabClick(ms, g)
+	}
+	if ms.Y < topRows || ms.Y >= topRows+g.bodyH || ms.X < 1 || ms.X > g.listW {
 		return nil
 	}
 	ri := m.scroll + ms.Y - topRows
@@ -168,8 +209,37 @@ func (m *Model) click(ms tea.Mouse) tea.Cmd {
 	return nil
 }
 
+func (m *Model) tabClick(ms tea.Mouse, g geometry) tea.Cmd {
+	if ms.Y < topRows || ms.Y >= topRows+g.bodyH || ms.X < 1 || ms.X > m.mainWidth() {
+		return nil
+	}
+	rs := m.tabRows(m.mainWidth())
+	ri := m.tscroll[m.tab] + ms.Y - topRows
+	if ri < 0 || ri >= len(rs) || !rs[ri].selectable() {
+		return nil
+	}
+	now := m.now()
+	double := ri == m.lastClickRow && !m.lastClick.IsZero() && now.Sub(m.lastClick) <= doubleClick
+	m.tsel[m.tab] = rs[ri].key
+	if double {
+		m.lastClick = now.Add(-2 * doubleClick)
+		return m.tabEnter()
+	}
+	m.lastClick, m.lastClickRow = now, ri
+	return nil
+}
+
 func (m *Model) wheel(ms tea.Mouse) {
-	if m.tab != tabBusinesses || m.help || m.away.open {
+	if m.help || m.away.open || m.modal.kind != modalNone {
+		return
+	}
+	if m.tab != tabBusinesses {
+		switch ms.Button {
+		case tea.MouseWheelUp:
+			m.tabMove(-1)
+		case tea.MouseWheelDown:
+			m.tabMove(1)
+		}
 		return
 	}
 	switch ms.Button {

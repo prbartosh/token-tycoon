@@ -19,6 +19,10 @@ const (
 	KindMoney
 	KindInfo
 	KindWarn
+	KindRare
+	KindEpic
+	KindReveal
+	KindLegend
 )
 
 const (

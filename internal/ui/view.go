@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"strconv"
 	"strings"
 
@@ -8,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"token-tycoon/internal/balance"
 	"token-tycoon/internal/format"
 	"token-tycoon/internal/sim"
 	"token-tycoon/internal/ui/anim"
@@ -24,7 +26,7 @@ const (
 	nameMin    = 8
 	minBarW    = 4
 	toastMaxW  = 48
-	helpW      = 60
+	helpW      = 76
 	awayW      = 50
 	sparkMin   = 8
 	sparkMax   = 30
@@ -125,11 +127,10 @@ func (m *Model) tooSmall(w, h int) string {
 }
 
 func (m *Model) versionName() string {
-	vs := m.b.Prestige.Layer1.Versions
-	if len(vs) == 0 {
+	if len(m.b.Prestige.Layer1.Versions) == 0 {
 		return ""
 	}
-	return vs[max(0, min(m.s.Prestige.VersionIndex, len(vs)-1))]
+	return sim.VersionName(m.b, m.s.Prestige.VersionIndex)
 }
 
 func (m *Model) header(w int) string {
@@ -159,14 +160,15 @@ func (m *Model) header(w int) string {
 		left.WriteString(st.Render(m.cat.T("ui.header.combo", format.Number(c, format.Letters))))
 	}
 	var right strings.Builder
+	d := &m.s.Derived
 	if m.s.IsUnlocked(sim.UnlockInfra) {
-		right.WriteString(th.Text.Render(m.cat.T("ui.header.pwr", "--")))
+		right.WriteString(th.Text.Render(m.cat.T("ui.header.pwr", m.usageText(d.EnergyNeed, d.EnergyAvail))))
 		right.WriteString("  ")
-		right.WriteString(th.Text.Render(m.cat.T("ui.header.gpu", "--")))
+		right.WriteString(th.Text.Render(m.cat.T("ui.header.gpu", m.usageText(d.ComputeNeed, d.ComputeCap))))
 		right.WriteString("  ")
 	}
 	if m.s.IsUnlocked(sim.UnlockMarket) {
-		right.WriteString(th.Text.Render(m.cat.T("ui.header.hype", "--")))
+		right.WriteString(th.Magenta.Render(m.cat.T("ui.header.hype", fixed(1+d.Market.Hype, 1)+"x")))
 		right.WriteString("  ")
 	}
 	if m.debug {
@@ -371,6 +373,9 @@ func (m *Model) prefix(r row, selected bool) string {
 }
 
 func (m *Model) costText(cost float64) string {
+	if math.IsInf(cost, 0) || math.IsNaN(cost) {
+		return m.th.Dim.Render("--")
+	}
 	s := m.money(cost)
 	ok := cost <= m.s.Money
 	if m.s.Settings.Colorblind {
@@ -565,13 +570,31 @@ func (m *Model) newsLine(w int) string {
 }
 
 func (m *Model) newsText() (string, bool) {
+	ev, left := sim.ActiveEvent(m.s, m.b)
+	if ev >= 0 && m.b.Event[ev].Effect == balance.EventReaction {
+		return m.eventBanner(ev, left), true
+	}
 	if m.status != "" && m.now().Sub(m.statusAt) < statusFor {
 		return m.status, m.statusWarn
+	}
+	if ev >= 0 {
+		return m.eventBanner(ev, left), false
 	}
 	if h := m.hint(); h != "" {
 		return h, false
 	}
+	if g := m.grant(); g.Claimable && g.Amount > 0 {
+		return m.cat.T("ui.hint.grant", g.Day, m.money(g.Amount)), false
+	}
 	return m.cat.T("ui.news." + strconv.Itoa(m.newsIdx%newsCount+1)), false
+}
+
+func (m *Model) eventBanner(ev int, left float64) string {
+	s := ">> " + m.eventName(ev) + ": " + m.eventDesc(ev, left)
+	if m.b.Event[ev].Effect != balance.EventReaction {
+		s += "  " + m.cat.T("ui.event.left", m.dur(left))
+	}
+	return s
 }
 
 func (m *Model) hint() string {
@@ -594,6 +617,13 @@ func (m *Model) keyItems() []string {
 		return append(items, c.T("ui.key.continue"), c.T("key.quit"))
 	case m.help:
 		return append(items, c.T("ui.key.close"), c.T("key.quit"))
+	case m.modal.kind == modalRelease:
+		return append(items, c.T("ui.key.continue"), c.T("key.quit"))
+	case m.modal.kind != modalNone:
+		return append(items, c.T("ui.key.confirm"), c.T("ui.key.cancel"), c.T("key.quit"))
+	}
+	if key := m.reactionKey(); key != "" {
+		items = append(items, c.T("ui.key.react", strings.ToUpper(key)))
 	}
 	if m.tab == tabBusinesses {
 		switch m.sel.kind {
@@ -615,13 +645,20 @@ func (m *Model) keyItems() []string {
 			}
 		}
 	}
+	if m.tab != tabBusinesses {
+		items = m.tabKeyItems(items)
+	}
+	if g := m.grant(); g.Claimable && g.Amount > 0 {
+		items = append(items, c.T("ui.key.grant", m.money(g.Amount)))
+	}
 	items = append(items, c.T("key.boost"))
 	if left := m.undoLeft(); left > 0 {
 		items = append(items, c.T("ui.key.undo", format.Duration(left)))
 	}
-	if m.tab == tabBusinesses {
-		items = append(items, c.T("key.select"))
+	if m.s.IsUnlocked(sim.UnlockPrestige1) {
+		items = append(items, c.T("key.prestige"))
 	}
+	items = append(items, c.T("key.select"))
 	return append(items, c.T("key.tabs"), c.T("key.help"), c.T("key.quit"))
 }
 

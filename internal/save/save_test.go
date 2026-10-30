@@ -292,3 +292,56 @@ func TestRoundTripM3(t *testing.T) {
 		t.Fatalf("round trip mismatch\nwant %+v\ngot  %+v", s.Training, got.Training)
 	}
 }
+
+func TestRoundTripAllSystemsContinues(t *testing.T) {
+	b := balance.Default()
+	s := sim.NewState(b, 99)
+	s.Lifetime.Total, s.Lifetime.Run, s.Money = 1e20, 1e14, 1e19
+	for i := range s.Businesses {
+		s.Businesses[i].Owned, s.Businesses[i].Manager = 150, true
+	}
+	s.Cards["dropout"], s.Cards["chinchilla"] = 3, 1
+	sim.Normalize(&s, b)
+	evs := sim.Step(&s, b, 0.1, nil, nil)
+	cmds := []sim.Command{
+		sim.BuyRack(2, 5), sim.BuyGrid(100), sim.BuyPPA(50), sim.BuySMR(), sim.BuyScraper(4), sim.BuyLicense(),
+		sim.SetSegments(0.1, 0.9, 0), sim.ClaimGrant("2026-10-29"),
+	}
+	evs = sim.Step(&s, b, 0, cmds, evs[:0])
+	evs = sim.Step(&s, b, 0, []sim.Command{sim.Train(1e8, 2e9, 0.4)}, evs[:0])
+	for range 600 {
+		evs = sim.Step(&s, b, 1, nil, evs[:0])
+	}
+	evs = sim.Step(&s, b, 0, []sim.Command{sim.PrestigeReset(), sim.ClaimGrant("2026-10-30")}, evs[:0])
+	evs = sim.Step(&s, b, 0, []sim.Command{sim.Train(1e7, 2e8, 0.2), sim.AssignModel(0, "free")}, evs[:0])
+	for range 50 {
+		evs = sim.Step(&s, b, 0.1, nil, evs[:0])
+	}
+	if s.Prestige.ResetsL1 != 1 || len(s.Training.Models) == 0 || s.Streak.Day != 2 || s.Infra.Energy.PPA.MW > 0 {
+		t.Fatalf("setup: resets %d models %d streak %+v ppa %+v", s.Prestige.ResetsL1, len(s.Training.Models), s.Streak, s.Infra.Energy.PPA)
+	}
+	data, err := Marshal(&s, b, at, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := Unmarshal(data, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := s
+	sim.Normalize(&want, b)
+	want.Undo, got.Undo = sim.Undo{}, sim.Undo{}
+	want.Combo, got.Combo = sim.Combo{Mult: 1}, sim.Combo{Mult: 1}
+	if !reflect.DeepEqual(want, *got) {
+		t.Fatalf("round trip mismatch\nwant %+v\ngot  %+v", want, *got)
+	}
+	a, c := want, *got
+	var ea, ec []sim.Event
+	for range 3000 {
+		ea = sim.Step(&a, b, 0.5, nil, ea[:0])
+		ec = sim.Step(&c, b, 0.5, nil, ec[:0])
+	}
+	if a.Money != c.Money || a.RNG != c.RNG || a.Market.Hype != c.Market.Hype || len(a.Training.Models) != len(c.Training.Models) {
+		t.Fatalf("restored game diverged: %v vs %v", a.Money, c.Money)
+	}
+}

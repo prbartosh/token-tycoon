@@ -126,6 +126,13 @@ type Model struct {
 	lastClick    time.Time
 	lastClickRow int
 
+	tsel     [numTabs]tkey
+	tscroll  [numTabs]int
+	trows    []trow
+	draft    trainDraft
+	modal    modal
+	retiring string
+
 	rows   []row
 	lines  []string
 	sb     strings.Builder
@@ -146,6 +153,7 @@ func New(cfg Config) *Model {
 		cmds:    make([]sim.Command, 0, 4),
 		log:     make([]string, 0, logCap),
 		rows:    make([]row, 0, 32),
+		trows:   make([]trow, 0, 64),
 		lines:   make([]string, 0, 64),
 		step:    time.Duration(max(1, b.Engine.SimStepMs)) * time.Millisecond,
 		sel:     row{kind: rowBusiness, idx: 0},
@@ -188,7 +196,7 @@ func (m *Model) desired() time.Duration {
 	switch {
 	case !m.focused:
 		return fpsInterval(e.FPSBackground)
-	case m.anim.Active() || m.away.open && m.anim.Counter.Moving():
+	case m.anim.Active() || m.revealing() || m.away.open && m.anim.Counter.Moving():
 		return fpsInterval(e.FPSAnimation)
 	}
 	return fpsInterval(e.FPSNormal)

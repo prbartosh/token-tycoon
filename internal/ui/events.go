@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strconv"
+
 	"token-tycoon/internal/format"
 	"token-tycoon/internal/i18n"
 	"token-tycoon/internal/sim"
@@ -33,7 +35,7 @@ func (m *Model) event(e *sim.Event, quiet bool) {
 	case sim.EvUnlock:
 		u := sim.Unlock(e.Index)
 		for t := range numTabs {
-			if tabUnlock[t] == u && t != m.tab {
+			if (tabUnlock[t] == u || extraUnlock(t, u)) && t != m.tab {
 				m.newTab[t] = true
 			}
 		}
@@ -42,6 +44,10 @@ func (m *Model) event(e *sim.Event, quiet bool) {
 		if !quiet {
 			a.Toast.Push(msg, anim.KindMilestone, toastLife)
 		}
+	}
+	if e.Kind >= sim.EvRack {
+		m.systemEvent(e, quiet)
+		return
 	}
 	if quiet {
 		return
@@ -101,7 +107,23 @@ func (m *Model) event(e *sim.Event, quiet bool) {
 	}
 }
 
+func extraUnlock(t int, u sim.Unlock) bool {
+	switch t {
+	case tabInfra:
+		return u == sim.UnlockData
+	case tabStats:
+		return u == sim.UnlockCards
+	}
+	return false
+}
+
 func (m *Model) undoName(e *sim.Event) string {
+	switch e.Purchase {
+	case sim.PurchaseRack:
+		return m.cat.T("infra.gen", e.Index) + " x" + strconv.Itoa(e.Count)
+	case sim.PurchaseGrid:
+		return m.cat.T("energy.grid") + " " + m.mw(e.Value)
+	}
 	switch {
 	case e.Business >= 0 && e.Count > 0:
 		return m.bizName(e.Business) + " x" + format.Number(float64(e.Count), format.Letters)
@@ -114,12 +136,12 @@ func (m *Model) undoName(e *sim.Event) string {
 }
 
 func (m *Model) rejected(e *sim.Event) {
-	var msg string
+	msg := m.rejectText(e)
 	switch e.Reason {
 	case sim.RejectCannotAfford:
 		msg = m.cat.T("msg.cannot_afford", m.money(e.Amount))
-	case sim.RejectLocked:
-		msg = m.cat.T("msg.locked", m.bizName(e.Business), m.money(e.Amount))
+	case sim.RejectLocked, sim.RejectNoEvent, sim.RejectAlreadyClaimed, sim.RejectBadDate,
+		sim.RejectNoData, sim.RejectQueueFull, sim.RejectTooLarge, sim.RejectNeedBenchmark:
 	case sim.RejectNothingToUndo:
 		msg = m.cat.T("msg.undo_expired", format.Duration(m.b.Engine.UndoWindowS))
 	case sim.RejectNotOwned:

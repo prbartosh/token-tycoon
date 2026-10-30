@@ -103,7 +103,7 @@ func finishTrainView(s *State, b *balance.Balance) {
 	for k := range s.Training.Queue {
 		j := &s.Training.Queue[k]
 		left := training.FLOPs(j.Params, j.Tokens, t) * math.Max(0, 1-j.Progress)
-		rate := tv.ClusterFLOPS * math.Min(1, math.Max(0, j.ClusterShare)) * (1 + s.CardMods.TrainingSpeed)
+		rate := plannedRate(s, j.ClusterShare)
 		if k == 0 {
 			rate = tv.TrainFLOPS
 		}
@@ -169,7 +169,7 @@ func EstimateTraining(s *State, b *balance.Balance, n, d, share float64) TrainEs
 		e.SynthFrac = e.Synthetic / d
 	}
 	e.Benchmark = training.Benchmark(n, d, e.ArchMult*training.SyntheticMult(e.SynthFrac, t), t)
-	rate := s.Derived.Train.ClusterFLOPS * math.Min(1, math.Max(0, share)) * (1 + s.CardMods.TrainingSpeed)
+	rate := plannedRate(s, share)
 	e.TimeS = math.Inf(1)
 	if rate > 0 {
 		e.TimeS = e.FLOPs / rate
@@ -180,8 +180,17 @@ func EstimateTraining(s *State, b *balance.Balance, n, d, share float64) TrainEs
 	return e
 }
 
+func plannedRate(s *State, share float64) float64 {
+	tv := &s.Derived.Train
+	energy := tv.EnergyFrac
+	if !(energy > 0) {
+		energy = 1
+	}
+	return tv.ClusterFLOPS * math.Min(1, math.Max(0, share)) * (1 + s.CardMods.TrainingSpeed) * energy
+}
+
 func SuggestTraining(s *State, b *balance.Balance, share, targetS float64) (n, d, bench float64) {
-	rate := s.Derived.Train.ClusterFLOPS * math.Min(1, math.Max(0, share)) * (1 + s.CardMods.TrainingSpeed)
+	rate := plannedRate(s, share)
 	maxD := s.Training.DataTokens + math.Min(s.Training.SynthTokens, s.Training.DataTokens)
 	return training.BestSplit(rate*targetS, s.Derived.Train.MaxParams, maxD, ArchMult(s, b), &b.Training)
 }

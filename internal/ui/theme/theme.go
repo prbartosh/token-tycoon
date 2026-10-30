@@ -44,6 +44,7 @@ type Theme struct {
 	Text, Dim, Bold, Title           Paint
 	Money, Rate, Bad, Good           Paint
 	Gold, Magenta, Params, Rare      Paint
+	Epic, ToastRare, ToastEpic       Paint
 	Border, Marker, Star, Locked     Paint
 	TabActive, TabIdle, TabLocked    Paint
 	Badge, Key, KeyText, Header      Paint
@@ -120,6 +121,7 @@ func New(c balance.Colors, p colorprofile.Profile) *Theme {
 	t.Magenta = paintOf(fg(base, mag).Bold(true))
 	t.Params = paintOf(fg(base, params))
 	t.Rare = paintOf(fg(base, rare))
+	t.Epic = paintOf(fg(base, pl.c(c.Epic)).Bold(true))
 	t.Border = paintOf(fg(base, dim))
 	t.Marker = paintOf(fg(base, gold).Bold(true))
 	t.Star = paintOf(fg(base, gold).Bold(true))
@@ -144,6 +146,8 @@ func New(c balance.Colors, p colorprofile.Profile) *Theme {
 	t.ToastGold = paintOf(bg(fg(base, pl.c(c.BG)), gold).Bold(true).Reverse(pl.plain))
 	t.ToastMagic = paintOf(bg(fg(base, pl.c(c.BG)), mag).Bold(true).Reverse(pl.plain))
 	t.ToastWarn = paintOf(bg(fg(base, text), pl.conv(lipgloss.Darken(lipgloss.Color(c.CostBad), 0.4))).Bold(true).Reverse(pl.plain))
+	t.ToastRare = paintOf(bg(fg(base, text), rare).Bold(true).Reverse(pl.plain))
+	t.ToastEpic = paintOf(bg(fg(base, text), pl.c(c.Epic)).Bold(true).Reverse(pl.plain))
 	t.Modal = paintOf(fg(base, text))
 
 	for i := range Tiers {

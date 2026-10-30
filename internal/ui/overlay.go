@@ -13,7 +13,7 @@ import (
 	"token-tycoon/internal/ui/widgets"
 )
 
-const helpLines = 14
+const helpLines = 18
 
 func (m *Model) overlays(g geometry) []*lipgloss.Layer {
 	var ls []*lipgloss.Layer
@@ -24,6 +24,8 @@ func (m *Model) overlays(g geometry) []*lipgloss.Layer {
 	switch {
 	case m.away.open:
 		ls = append(ls, m.centered(m.awayBox(), 10))
+	case m.modal.kind != modalNone:
+		ls = append(ls, m.centered(m.modalBox(), 10))
 	case m.help:
 		ls = append(ls, m.centered(m.helpBox(), 10))
 	}
@@ -68,8 +70,33 @@ func (m *Model) floaters(ls []*lipgloss.Layer, g geometry) []*lipgloss.Layer {
 	return ls
 }
 
-func (m *Model) toastStyle(k anim.Kind) theme.Paint {
+const revealS = 0.5
+
+func (m *Model) revealing() bool {
+	for _, t := range m.anim.Toast.Items() {
+		if t.Age < revealS && t.Kind >= anim.KindRare {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) toastStyle(t *anim.Toast) theme.Paint {
+	k := t.Kind
+	reveal := [...]theme.Paint{m.th.ToastInfo, m.th.ToastRare, m.th.ToastEpic, m.th.ToastGold}
 	switch k {
+	case anim.KindReveal, anim.KindRare, anim.KindEpic, anim.KindLegend:
+		if t.Age < revealS {
+			return reveal[int(t.Age*16)%len(reveal)]
+		}
+	}
+	switch k {
+	case anim.KindRare:
+		return m.th.ToastRare
+	case anim.KindEpic:
+		return m.th.ToastEpic
+	case anim.KindLegend:
+		return m.th.ToastGold
 	case anim.KindMilestone:
 		return m.th.ToastMagic
 	case anim.KindCrit:
@@ -83,7 +110,9 @@ func (m *Model) toastStyle(k anim.Kind) theme.Paint {
 func (m *Model) toasts(ls []*lipgloss.Layer) []*lipgloss.Layer {
 	w := m.width
 	maxW := min(toastMaxW, max(24, w/3), w-4)
-	for i, t := range m.anim.Toast.Items() {
+	items := m.anim.Toast.Items()
+	for i := range items {
+		t := &items[i]
 		txt := " " + t.Text + " "
 		if widgets.Width(txt) > maxW {
 			txt = ansi.Truncate(txt, maxW-1, "…") + " "
@@ -94,7 +123,7 @@ func (m *Model) toasts(ls []*lipgloss.Layer) []*lipgloss.Layer {
 			continue
 		}
 		vis := ansi.Truncate(txt, w-1-x, "")
-		ls = append(ls, lipgloss.NewLayer(m.toastStyle(t.Kind).Render(vis)).X(x).Y(topRows+i).Z(5))
+		ls = append(ls, lipgloss.NewLayer(m.toastStyle(t).Render(vis)).X(x).Y(topRows+i).Z(5))
 	}
 	return ls
 }

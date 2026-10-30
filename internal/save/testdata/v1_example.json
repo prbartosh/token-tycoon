@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "saved_at": "2026-10-30T14:22:05Z",
+  "seed": 8812734512,
+  "rng": { "events": 1129, "crits": 88213, "cards": 4410, "rivals": 37, "energy": 902 },
+  "clock_s": 412933.4,
+  "money": 1.284e15,
+  "lifetime": { "run": 8.91e16, "total": 4.4e21, "layer2_total": 4.4e21 },
+  "businesses": [
+    { "id": "api_wrapper", "owned": 142, "manager": true, "progress": 0.43 },
+    { "id": "rag_chatbot", "owned": 87, "manager": true, "progress": 0.12 },
+    { "id": "lora_finetune", "owned": 31, "manager": true, "progress": 0.88 },
+    { "id": "vibe_studio", "owned": 12, "manager": false, "progress": 0.0 }
+  ],
+  "upgrades": ["prompt_caching", "quant_4bit", "spec_decoding"],
+  "infra": {
+    "gpu_gen": 2,
+    "racks": { "1": 14, "2": 6 },
+    "energy": { "grid_mw": 20, "ppa": { "mw": 10, "index": 41, "expires_s": 501120 }, "smr": 0, "orbital": 0 },
+    "cloud_enabled": false
+  },
+  "market": {
+    "unlocked_regions": ["us"],
+    "segments": { "free": 0.1, "pro": 0.9, "enterprise": 0.0 },
+    "hype": 0.8,
+    "reputation": 4
+  },
+  "training": {
+    "models": [
+      { "name": "v4.5 Turbo", "params": 1e9, "tokens": 2e10, "benchmark": 61.2, "released_s": 380100, "segment": "pro" }
+    ],
+    "queue": [
+      { "params": 3e9, "tokens": 6e10, "cluster_share": 0.3, "progress": 0.27, "arch": ["moe"] }
+    ],
+    "data_tokens": 9.1e10
+  },
+  "talent": [
+    { "class": "senior", "name": "Ola", "trait": null },
+    { "class": "star", "name": "Igor", "trait": "perfectionist" }
+  ],
+  "contracts": [
+    { "id": "c-0017", "volume": 4.2e17, "delivered": 1.1e17, "min_benchmark": 50, "deadline_s": 414100, "reward_minutes": 35 }
+  ],
+  "research": ["eff_1", "scale_1", "scale_2"],
+  "cards": { "dropout": 3, "adam": 1, "rag_paper": 1, "chinchilla": 1 },
+  "rules": [
+    { "if": [["money", ">", "10x_cost:best_roi"]], "then": ["buy", "best_roi", 10], "enabled": true }
+  ],
+  "prestige": { "params": 412, "params_lifetime": 1880, "capital": 0, "version_index": 6, "round_index": 0, "resets_l1": 6, "resets_l2": 0 },
+  "agi": { "stage": 0, "invested": 0 },
+  "streak": { "day": 4, "last_claim": "2026-10-30" },
+  "achievements": ["first_manager", "first_prestige", "first_crit", "card_collector_1"],
+  "settings": { "advisor": true, "notation": "letters", "colorblind": false, "bell": false },
+  "stats": { "play_s": 18234, "offline_s": 394699, "crits": 312, "best_combo": 3.8, "events_caught": 41 }
+}

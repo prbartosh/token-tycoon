@@ -30,6 +30,10 @@ Data: 30.10.2026. Te decyzje mają pierwszeństwo przed DESIGN.md i ARCHITECTURE
 13. Progi infra (`lifetime 1e7`) i prestiżu 1 (`run 1e12`) zostają jako liczby. Kolejność: najpierw infra, potem prestiż. Realne czasy mierzy symulator; cel strojenia: infra ok. 20 do 30 min, prestiż 1 ok. 1 h.
 14. Krytyki i karty w trybie ciągłym (cykl < 0.2 s): losowanie dla efektywnej liczby cykli **max 5/s na biznes** (nadwyżka liczona jako wartość oczekiwana bez losowania kart). Krytyki zbalansowane tak, by średni wkład był stały niezależnie od długości cyklu.
 
+## Styl kodu
+
+17. **Bez komentarzy w kodzie.** Dozwolone wyłącznie: krótki doc string na górze pliku (opis pakietu lub pliku) oraz krótki komentarz przy bardzo skomplikowanej logice biznesowej (np. wyprowadzenie wzoru). Komentarze nie mogą tłumaczyć, co robi kod. Każdy agent przy okazji usuwa istniejące komentarze łamiące tę zasadę w plikach, które dotyka. Komentarze w `balance.toml` opisujące znaczenie kluczy są dozwolone.
+
 ## Sterowanie
 
 15. Zakładki: **← →** i cyfry **1 do 7**. Wybór: **↑ ↓** i **k / j**. Klawisze h i l nie zmieniają zakładek (wolne dla zdarzeń: Halucynacja = H, Inwestor anioł = G).

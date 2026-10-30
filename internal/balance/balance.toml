@@ -1,0 +1,680 @@
+# Token Tycoon: balance constants
+#
+# Starting values are hypotheses. Tune only through the simulator: token-tycoon --simulate
+# This file is embedded in the binary. A local copy at ~/.config/token-tycoon/balance.toml
+# overrides only the keys it contains (arrays of tables are merged by their "id"/"gen" key).
+#
+# Display names of businesses, upgrades, cards, events, rivals, regions, rounds etc. are NOT
+# here: they live in the translation catalogs (internal/i18n), keyed by the ids below.
+#
+# ------------------------------------------------------------------------------------------
+# UNLOCK THRESHOLDS (docs/DECISIONS.md item 8)
+#
+# Every former `unlock_day = d` is replaced by `unlock_lifetime = X`, a threshold on
+# lifetime total revenue in $ (state.lifetime.total). X is derived from the pacing table in
+# DESIGN section 10, which gives the income range R_lo(d)..R_hi(d) in $/s for each day:
+#
+#   X(d) = 10 ^ round( log10( R_lo(d) * 3600 ) )
+#
+# i.e. "one hour of income at the rate the player has when day d starts", rounded to the
+# nearest power of ten. Under roughly exponential growth, cumulative revenue at a given
+# moment is income/growth_rate; one hour is the e-folding time of an active session, so the
+# threshold is crossed close to the start of day d.
+#
+#   day  R_lo $/s   R_lo*3600   X        used for
+#   2    1e9        3.6e12      1e13     market, rivals, segments
+#   3    1e13       3.6e16      1e17     training, data, businesses 7..10
+#   4    1e18       3.6e21      1e22     contracts, talent
+#   5    1e25       3.6e28      1e29     investors (funding round itself: layer2 1e40, kept)
+#   8    1e40       3.6e43      1e44     rules (automation)
+#   10   1e50       3.6e53      1e54     regions
+#   14   1e65       3.6e68      1e69     orbital energy, full safety branch
+#   18   1e90       3.6e93      1e94     AGI race (first stage costs 1e95)
+#
+# Day-1 systems keep explicit numbers (DECISIONS item 13): infrastructure at lifetime 1e7,
+# prestige layer 1 at run revenue 1e12 and only after infrastructure. Events and cards are
+# day-1 systems without a number in DESIGN; they unlock together with infrastructure (1e7)
+# so the first ~25 minutes stay focused on businesses (DESIGN 1, "gradual complexity").
+# Time-based mechanics (model deflation, PPA days, investor quarter, hype half-life) still
+# run on the game clock (state.clock_s).
+# ------------------------------------------------------------------------------------------
+
+[meta]
+version = 2
+target_days = 30
+
+# ---------------------------------------------------------------- engine and performance
+[engine]
+sim_step_ms = 100
+fps_animation = 30
+fps_normal = 10
+fps_background = 1
+offline_step_s = 60
+autosave_s = 60
+backups = 3
+undo_window_s = 5
+
+[offline]
+efficiency_start = 0.5
+efficiency_max = 1.0
+cap_hours_start = 8
+cap_hours_max = 24
+
+# ---------------------------------------------------------------- start of a new game
+# DECISIONS item 9: 0 $ and one free API wrapper (without it the game cannot start).
+[start]
+money = 0
+free_businesses = { api_wrapper = 1 }
+
+# ---------------------------------------------------------------- businesses
+# cost: base cost, r: cost growth, cycle_s: cycle length, tokens: tokens per cycle per unit,
+# compute: compute per unit, manager cost = cost * manager_mult unless manager_cost is set.
+# unlock_lifetime: lifetime revenue needed before the business can be bought (see header).
+
+[business_defaults]
+manager_mult = 100
+continuous_bar_below_s = 0.2
+# DECISIONS item 14: in continuous mode crits and card drops are rolled for at most this many
+# cycles per second per business; the surplus is credited at expected value without rolls.
+draw_cap_per_s = 5
+
+[[business]]
+id = "api_wrapper"
+cost = 10
+r = 1.07
+cycle_s = 1
+tokens = 1
+compute = 0.01
+manager_cost = 60              # DECISIONS item 10 (instead of cost * manager_mult = 1000)
+unlock_lifetime = 0
+
+[[business]]
+id = "rag_chatbot"
+cost = 120
+r = 1.15
+cycle_s = 3
+tokens = 18
+compute = 0.05
+unlock_lifetime = 0
+
+[[business]]
+id = "lora_finetune"
+cost = 1.4e3
+r = 1.14
+cycle_s = 6
+tokens = 216
+compute = 0.25
+unlock_lifetime = 0
+
+[[business]]
+id = "vibe_studio"
+cost = 1.7e4
+r = 1.13
+cycle_s = 12
+tokens = 2.6e3
+compute = 1.25
+unlock_lifetime = 0
+
+[[business]]
+id = "agent_swarm"
+cost = 2.0e5
+r = 1.12
+cycle_s = 24
+tokens = 3.1e4
+compute = 6.25
+unlock_lifetime = 0
+
+[[business]]
+id = "reasoning_model"
+cost = 2.4e6
+r = 1.11
+cycle_s = 48
+tokens = 3.73e5
+compute = 31
+unlock_lifetime = 0
+
+[[business]]
+id = "gpu_rental"
+cost = 2.9e7
+r = 1.10
+cycle_s = 96
+tokens = 4.5e6
+compute = 156
+unlock_lifetime = 1e17         # DESIGN 10: businesses 7..10 on day 3
+
+[[business]]
+id = "smr_datacenter"
+cost = 3.5e8
+r = 1.09
+cycle_s = 192
+tokens = 5.4e7
+compute = 780
+unlock_lifetime = 1e17
+
+[[business]]
+id = "orbital_dc"
+cost = 4.2e9
+r = 1.08
+cycle_s = 384
+tokens = 6.48e8
+compute = 3.9e3
+unlock_lifetime = 1e17
+
+[[business]]
+id = "frontier_lab"
+cost = 5.0e10
+r = 1.07
+cycle_s = 768
+tokens = 7.8e9
+compute = 1.95e4
+unlock_lifetime = 1e17
+
+# ---------------------------------------------------------------- milestones
+# speed: each threshold reached multiplies the cycle time by speed_mult.
+# profit: from profit_start, then every profit_every units forever, revenue * profit_mult.
+# global: when ALL businesses own >= threshold; thresholds from global_thresholds, then
+#         every global_every after the last one, forever (DECISIONS item 12).
+[milestones]
+speed_thresholds = [25, 50, 100]
+speed_mult = 0.5
+profit_start = 200
+profit_every = 100
+profit_mult = 2.0
+global_thresholds = [25, 50, 100]
+global_every = 100
+global_mult = 2.0
+
+# ---------------------------------------------------------------- upgrades
+# target: list of business ids or ["all"]; effect: profit | cost | cycle | compute
+[[upgrade]]
+id = "prompt_caching"
+cost = 5e3
+target = ["api_wrapper", "rag_chatbot"]
+effect = "profit"
+value = 3.0
+
+[[upgrade]]
+id = "quant_4bit"
+cost = 5e4
+target = ["all"]
+effect = "cost"
+value = 0.9
+
+[[upgrade]]
+id = "spec_decoding"
+cost = 5e5
+target = ["all"]
+effect = "cycle"
+value = 0.75
+
+[[upgrade]]
+id = "kv_cache"
+cost = 2e6
+target = ["all"]
+effect = "compute"
+value = 0.8
+
+[[upgrade]]
+id = "vibe_coding_2"
+cost = 8e6
+target = ["vibe_studio"]
+effect = "profit"
+value = 5.0
+
+[[upgrade]]
+id = "mcp"
+cost = 6e7
+target = ["agent_swarm"]
+effect = "profit"
+value = 5.0
+
+[[upgrade]]
+id = "context_10m"
+cost = 4e8
+target = ["reasoning_model"]
+effect = "profit"
+value = 4.0
+
+[[upgrade]]
+id = "moe"
+cost = 3e9
+target = ["agent_swarm", "reasoning_model", "gpu_rental"]
+effect = "profit"
+value = 3.0
+
+[[upgrade]]
+id = "distillation"
+cost = 2e10
+target = ["api_wrapper", "rag_chatbot", "lora_finetune", "vibe_studio"]
+effect = "profit"
+value = 5.0
+
+# ---------------------------------------------------------------- infrastructure
+[infra]
+unlock_lifetime = 1e7          # DECISIONS item 13, target ~20-30 min of play
+starter_headroom = 1.2         # starter cluster = demand * 1.2
+rack_r = 1.12
+rack_sellback = 0.3
+cloud_revenue_share = 0.15
+
+[[gpu_gen]]
+gen = 1
+rack_cost = 5e5
+compute = 100
+mw = 0.5
+flops_per_rack = 1e14
+
+[[gpu_gen]]
+gen = 2
+rack_cost = 3e6
+compute = 1e3
+mw = 1.5
+flops_per_rack = 1e15
+
+[[gpu_gen]]
+gen = 3
+rack_cost = 1.8e7
+compute = 1e4
+mw = 4.5
+flops_per_rack = 1e16
+
+[[gpu_gen]]
+gen = 4
+rack_cost = 1.08e8
+compute = 1e5
+mw = 13.5
+flops_per_rack = 1e17
+
+[[gpu_gen]]
+gen = 5
+rack_cost = 6.5e8
+compute = 1e6
+mw = 40.5
+flops_per_rack = 1e18
+
+[[gpu_gen]]
+gen = 6
+rack_cost = 3.9e9
+compute = 1e7
+mw = 121.5
+flops_per_rack = 1e19
+
+[energy]
+grid_cost_coef = 0.08          # cost = revenue * grid_share * coef * (index / 50)
+grid_peak_availability = 0.7
+grid_peak_hours = [17, 21]
+index_mean = 50
+index_daily_amplitude = 20
+index_noise = 10
+ppa_days = 7
+smr_cost_minutes = 240         # in minutes of revenue at purchase time
+smr_mw = 1e3
+orbital_unlock_lifetime = 1e69 # DESIGN 10: orbit on days 14..17
+orbital_cost_minutes = 720
+orbital_mw = 1e4
+orbital_compute_bonus = 0.1
+
+# ---------------------------------------------------------------- market
+[market]
+unlock_lifetime = 1e13         # was unlock_day = 2
+regions_unlock_lifetime = 1e54 # DESIGN 10: regions on days 10..13
+price_base = 1.0               # DECISIONS item 11: 1 $/token before the market unlocks
+share_exponent = 4
+share_neutral = 0.25
+demand_clamp = [0.25, 2.5]
+quality_clamp = [0.5, 2.0]
+quality_divisor = 50
+deflation_per_day = 0.95
+hype_half_life_h = 6
+
+[market.segments]
+free_price = 0.0
+free_hype_per_share = 0.5
+pro_price = 1.0
+enterprise_price = 3.0
+enterprise_min_benchmark = 70
+
+[[rival]]
+id = "northwind"
+style = "steady"
+release_every_days = 3
+release_jitter_days = 0
+start_benchmark = 12
+end_benchmark = 95
+price_pressure = 1.0
+
+[[rival]]
+id = "openweights"
+style = "open_source"
+release_every_days = 2
+release_jitter_days = 0
+start_benchmark = 8
+end_benchmark = 90
+price_pressure = 0.95          # every release lowers the market price
+
+[[rival]]
+id = "dragonfly"
+style = "jumpy"
+release_every_days = 3.5
+release_jitter_days = 2.5      # random +-
+start_benchmark = 6
+end_benchmark = 93
+price_pressure = 1.0
+
+[[rival]]
+id = "haven"
+style = "safety"
+release_every_days = 4
+release_jitter_days = 0
+start_benchmark = 10
+end_benchmark = 88
+price_pressure = 1.0
+
+[[region]]
+id = "us"
+market_share = 0.4
+entry = "none"
+entry_cost_minutes = 0
+
+[[region]]
+id = "eu"
+market_share = 0.3
+entry = "compliance"
+entry_cost_minutes = 120
+
+[[region]]
+id = "asia"
+market_share = 0.3
+entry = "datacenter"
+entry_cost_minutes = 180
+
+# ---------------------------------------------------------------- training
+[training]
+unlock_lifetime = 1e17         # was unlock_day = 3
+loss_E = 1.69
+loss_A = 406.0
+loss_B = 411.0
+alpha = 0.34
+beta = 0.28
+benchmark_k = 0.55
+flops_per_param_token = 6
+cluster_rack_exponent = 0.5
+max_models = 3
+max_params_levels = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14]
+synthetic_min_benchmark = 60
+synthetic_penalty_above = 0.5
+
+[training.architecture]        # excess-loss multipliers (< 1 = better)
+moe = 0.85
+rlhf = 0.9
+reasoning = 0.8
+tokenizer_v2 = 0.95
+
+[data]
+unlock_lifetime = 1e17         # with training (day 3)
+scraper_cost = 1e6
+scraper_r = 1.15
+scraper_tokens_per_s = 1e6
+scraper_incident_chance_per_h = 0.02
+license_cost_minutes = 30
+license_tokens = [1e9, 1e10, 1e11, 1e12, 1e13]   # grows with research level
+
+# ---------------------------------------------------------------- talent
+[talent]
+unlock_lifetime = 1e22         # was unlock_day = 4
+poach_window_s = 60
+poach_counter_mult = 2.0
+poach_counter_days = 3
+
+[[talent_class]]
+id = "junior"
+salary_share = 0.005
+speed = 0.05
+trait = false
+
+[[talent_class]]
+id = "senior"
+salary_share = 0.015
+speed = 0.15
+trait = false
+
+[[talent_class]]
+id = "star"
+salary_share = 0.04
+speed = 0.40
+trait = true
+
+# ---------------------------------------------------------------- contracts
+[contracts]
+unlock_lifetime = 1e22         # was unlock_day = 4
+max_active = 3
+duration_min = [10, 30]
+volume_mult = [1.5, 4.0]       # * current production * duration
+reward_minutes = [20, 60]
+reputation_gain = 1
+reputation_loss = 1
+
+# ---------------------------------------------------------------- safety
+[safety]
+# Incidents hit hype, which exists from the market onwards, so they start with the market.
+# The full safety research branch (DESIGN 10, days 14..17) is gated by research itself.
+unlock_lifetime = 1e13
+incident_every_h_base = 4
+incident_every_h_max = 48
+hype_loss = 0.3
+reaction_window_s = 10
+
+# ---------------------------------------------------------------- investors
+[investors]
+unlock_lifetime = 1e29         # DESIGN 10: days 5..7
+quarter_h = 24
+target_growth = [0.5, 2.0]
+beat_bonus_capital = 0.25
+
+# ---------------------------------------------------------------- prestige
+[prestige.layer1]
+unlock_run_revenue = 1e12      # DECISIONS item 13; also requires infrastructure
+param_coef = 100
+param_divisor = 1e12
+param_exponent = 0.5
+bonus_per_param = 0.02
+versions = ["v1.0", "v2.0", "v2.5 Turbo", "v3.0 Pro", "v3.5", "v4.0 Ultra", "v4.5 Turbo", "v5.0"]
+
+[prestige.layer2]
+unlock_lifetime = 1e40         # kept: funding round on days 5..7
+capital_coef = 5
+capital_log_offset = 39
+capital_exponent = 1.5
+rounds = ["pre_seed", "seed", "series_a", "series_b", "series_c", "series_d", "series_e", "series_f", "ipo"]
+
+[research]
+unlock_lifetime = 1e40         # spends VC capital, so it opens with the funding round
+
+[agi]
+unlock_lifetime = 1e94         # DESIGN 10: days 18..30
+
+[[agi_stage]]
+id = "alignment"
+cost = 1e95
+effect = "no_incidents"
+
+[[agi_stage]]
+id = "compute"
+cost = 1e105
+effect = "all_profit_x2"
+
+[[agi_stage]]
+id = "data"
+cost = 1e115
+effect = "synthetic_no_penalty"
+
+[[agi_stage]]
+id = "training"
+cost = 1e125
+effect = "final_training"
+
+[[agi_stage]]
+id = "evaluation"
+cost = 1e140
+effect = "ending"
+
+# ---------------------------------------------------------------- dopamine
+# Expected crit multiplier per cycle = 1 + chance * (mult - 1) = 1.27, independent of the
+# cycle length, so the average crit contribution is the same for every business
+# (DECISIONS item 14). Offline and above draw_cap_per_s the expected value is used.
+[crit]
+chance = 0.03
+mult = 10
+
+# DECISIONS item 16: every Space press adds `step` to a global revenue multiplier that starts
+# at 1.0, capped at max_mult, and resets to 1.0 after decay_after_s seconds without a press.
+[combo]
+max_mult = 5.0
+step = 0.1
+decay_after_s = 2
+
+[streak]
+max_day = 7
+bonus_per_day_minutes = 10     # grant = streak day * 10 minutes of revenue
+break_penalty = 1              # streak drop on a missed day
+
+[events]
+unlock_lifetime = 1e7          # day-1 system, opens with infrastructure (see header)
+interval_s = [120, 300]
+
+[[event]]
+id = "viral_demo"
+weight = 20
+effect = "profit"
+value = 7
+duration_s = 30
+
+[[event]]
+id = "benchmark_leak"
+weight = 15
+effect = "card_chance"
+value = 3
+duration_s = 60
+
+[[event]]
+id = "gpu_shortage"
+weight = 10
+effect = "rack_cost"
+value = 1.2
+duration_s = 60
+
+[[event]]
+id = "hallucination"
+weight = 10
+effect = "reaction"
+key = "h"
+window_s = 5
+reward_minutes = 5
+penalty_minutes = 1
+
+[[event]]
+id = "angel_investor"
+weight = 10
+effect = "reaction"
+key = "g"
+window_s = 8
+reward_minutes = 15
+
+[[event]]
+id = "rush_hour"
+weight = 20
+effect = "profit_tiers"
+tiers = [1, 2, 3]
+value = 5
+duration_s = 45
+
+[[event]]
+id = "conference"
+weight = 15
+effect = "hype"
+value = 0.5
+duration_s = 120
+
+# ---------------------------------------------------------------- cards
+[cards]
+unlock_lifetime = 1e7          # day-1 system, opens with infrastructure (see header)
+drop_chance_per_cycle = 0.0005
+level_bonus_mult = 1.5         # every duplicate multiplies the card bonus by 1.5
+rarity_weights = { common = 70, rare = 22, epic = 7, legendary = 1 }
+set_bonus = { common = 0.1, rare = 0.25, epic = 0.5, legendary = 1.0 }
+
+[[card]]
+id = "dropout"
+rarity = "common"
+effect = "profit_all"
+value = 0.02
+
+[[card]]
+id = "adam"
+rarity = "common"
+effect = "training_speed"
+value = 0.03
+
+[[card]]
+id = "lora_paper"
+rarity = "rare"
+effect = "profit_business"
+target = "lora_finetune"
+value = 0.5
+
+[[card]]
+id = "rag_paper"
+rarity = "rare"
+effect = "profit_business"
+target = "rag_chatbot"
+value = 0.5
+
+[[card]]
+id = "chinchilla"
+rarity = "epic"
+effect = "reveal_optimal_ratio"
+value = 1
+
+[[card]]
+id = "moe_paper"
+rarity = "epic"
+effect = "compute_all"
+value = -0.1
+
+[[card]]
+id = "attention"
+rarity = "legendary"
+effect = "profit_all"
+value = 1.0
+
+# ---------------------------------------------------------------- rules (automation)
+[rules]
+unlock_lifetime = 1e44         # was unlock_day = 8
+slots_start = 3
+slots_max = 12
+eval_every_s = 1
+
+# ---------------------------------------------------------------- interface
+[ui]
+number_suffixes = ["", "K", "M", "B", "T"]
+letter_suffixes_after = "T"    # then aa, ab, ac...
+advisor_default = true
+min_width = 60
+two_panel_width = 80
+three_panel_width = 120
+sparkline_seconds = 60
+
+[ui.colors]
+bg = "#0B0E14"
+text = "#E6E6E6"
+dim = "#5C6370"
+money_from = "#00E5FF"
+money_to = "#39FF88"
+cost_bad = "#FF4D6D"
+gold = "#FFC300"
+magenta = "#FF3CAC"
+params = "#A66CFF"
+capital = "#2EC4B6"
+rare = "#3A86FF"
+epic = "#B15CFF"
+tier_gradient = ["#00E5FF", "#00C2FF", "#3A86FF", "#6A5CFF", "#A66CFF", "#D45CFF", "#FF3CAC", "#FF6B6B", "#FF9F1C", "#FFC300"]

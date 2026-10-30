@@ -27,6 +27,17 @@ func TestDefaultIsValid(t *testing.T) {
 	if m := b.UpgradeMask(0); !m.Has(0) || !m.Has(1) || m.Has(2) {
 		t.Errorf("prompt_caching mask = %b", m)
 	}
+	if n := len(b.Card); n < 36 || n > 44 {
+		t.Errorf("cards = %d, want about 40", n)
+	}
+	for r := range Rarities {
+		if len(b.CardsOfRarity(r)) == 0 {
+			t.Errorf("no cards of rarity %s", Rarities[r])
+		}
+	}
+	if i, ok := b.CardIndex("lora_paper"); !ok || b.CardTarget(i) != 2 {
+		t.Errorf("lora_paper target index")
+	}
 	if b.Milestones.GlobalEvery != 100 || len(b.Milestones.GlobalThresholds) != 3 {
 		t.Errorf("global milestones = %v every %d", b.Milestones.GlobalThresholds, b.Milestones.GlobalEvery)
 	}
@@ -85,6 +96,11 @@ func TestValidationErrors(t *testing.T) {
 		{"crit chance", "[crit]\nchance = 2.0\n", "crit.chance: must be in [0, 1]"},
 		{"prestige before infra", "[prestige.layer1]\nunlock_run_revenue = 1e3\n", "infrastructure comes first"},
 		{"syntax", "[crit\n", "parse"},
+		{"card effect", "[[card]]\nid = \"dropout\"\neffect = \"magic\"\n", `unknown card effect "magic"`},
+		{"card reduction sign", "[[card]]\nid = \"layer_norm\"\nvalue = 0.2\n", "cost_all must be in (-1, 0)"},
+		{"compute_mult", "[[upgrade]]\nid = \"moe\"\ncompute_mult = 1.5\n", "compute_mult: must be in (0, 1]"},
+		{"gen order", "[[gpu_gen]]\ngen = 2\nunlock_lifetime = 1\n", "generations must unlock in order"},
+		{"max level", "[cards]\nmax_level = 0\n", "cards.max_level"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

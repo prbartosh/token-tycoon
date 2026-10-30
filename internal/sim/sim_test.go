@@ -121,7 +121,9 @@ func TestBulkBuyAndMilestones(t *testing.T) {
 
 func TestGlobalMilestones(t *testing.T) {
 	b := bal(t)
-	h := Hypo{}
+	base := NewState(b, 1)
+	h := HypoOf(&base)
+	h.Unlocked = balance.AllBusinesses
 	for i := range N {
 		h.Owned[i] = 250
 	}

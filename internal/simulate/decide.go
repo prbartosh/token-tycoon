@@ -4,19 +4,21 @@ import (
 	"math"
 
 	"token-tycoon/internal/balance"
-
 	"token-tycoon/internal/econ"
 	"token-tycoon/internal/sim"
 )
 
 type candidate struct {
-	cmd  sim.Command
+	cmds [2]sim.Command
+	n    int
 	kind sim.PurchaseKind
 	idx  int
 	qty  int
 	cost float64
 	gain float64
 }
+
+func one(c sim.Command) ([2]sim.Command, int) { return [2]sim.Command{c}, 1 }
 
 func (bt *bot) effRate(h *sim.Hypo, managers *[sim.N]bool, d *sim.Derived) float64 {
 	sim.Evaluate(bt.b, h, d)
@@ -35,13 +37,18 @@ func (bt *bot) effRate(h *sim.Hypo, managers *[sim.N]bool, d *sim.Derived) float
 	return r
 }
 
+func (bt *bot) managers() [sim.N]bool {
+	var mgr [sim.N]bool
+	for i := range sim.N {
+		mgr[i] = bt.s.Businesses[i].Manager
+	}
+	return mgr
+}
+
 func (bt *bot) candidates(out []candidate) ([]candidate, float64) {
 	s := &bt.s
 	b := bt.b
-	var mgr [sim.N]bool
-	for i := range sim.N {
-		mgr[i] = s.Businesses[i].Manager
-	}
+	mgr := bt.managers()
 	base := sim.HypoOf(s)
 	var d sim.Derived
 	r0 := bt.effRate(&base, &mgr, &d)
@@ -60,15 +67,17 @@ func (bt *bot) candidates(out []candidate) ([]candidate, float64) {
 			h := base
 			h.Owned[i] += k
 			gain := bt.effRate(&h, &mgr, &d) - r0
-			out = append(out, candidate{cmd: sim.Buy(i, k), kind: sim.PurchaseBusiness, idx: i, qty: k,
-				cost: sim.BusinessCost(s, b, i, k), gain: gain})
+			c := candidate{kind: sim.PurchaseBusiness, idx: i, qty: k, cost: sim.BusinessCost(s, b, i, k), gain: gain}
+			c.cmds, c.n = one(sim.Buy(i, k))
+			out = append(out, c)
 		}
 		if owned > 0 && !mgr[i] {
 			mm := mgr
 			mm[i] = true
 			gain := bt.effRate(&base, &mm, &d) - r0
-			out = append(out, candidate{cmd: sim.HireManager(i), kind: sim.PurchaseManager, idx: i,
-				cost: b.ManagerCost(i), gain: gain})
+			c := candidate{kind: sim.PurchaseManager, idx: i, cost: b.ManagerCost(i), gain: gain}
+			c.cmds, c.n = one(sim.HireManager(i))
+			out = append(out, c)
 		}
 	}
 	for ui := range b.Upgrades {
@@ -81,10 +90,62 @@ func (bt *bot) candidates(out []candidate) ([]candidate, float64) {
 		if b.Upgrades[ui].Effect == balance.EffectCost {
 			gain = r0 * (1 - b.Upgrades[ui].Value)
 		}
-		out = append(out, candidate{cmd: sim.BuyUpgrade(ui), kind: sim.PurchaseUpgrade, idx: ui,
-			cost: b.Upgrades[ui].Cost, gain: gain})
+		c := candidate{kind: sim.PurchaseUpgrade, idx: ui, cost: b.Upgrades[ui].Cost, gain: gain}
+		c.cmds, c.n = one(sim.BuyUpgrade(ui))
+		out = append(out, c)
+	}
+	if s.IsUnlocked(sim.UnlockInfra) {
+		out = bt.infraCandidates(out, &base, &mgr, r0)
 	}
 	return out, r0
+}
+
+func (bt *bot) infraCandidates(out []candidate, base *sim.Hypo, mgr *[sim.N]bool, r0 float64) []candidate {
+	s := &bt.s
+	b := bt.b
+	sd := &s.Derived
+	var d sim.Derived
+	deficit := sd.ComputeNeed*1.1 - sd.ComputeCap
+	for gen := 1; deficit > 0 && gen <= s.Infra.GPUGen; gen++ {
+		g := &b.GPUGens[gen-1]
+		qtys := [2]int{1, 0}
+		if deficit > g.Compute {
+			qtys[1] = min(200, int(math.Ceil(deficit/g.Compute)))
+		}
+		for _, k := range qtys {
+			if k < 1 {
+				continue
+			}
+			mw := sim.GridNeededMW(s, b, float64(k)*g.MW)
+			h := *base
+			h.Infra.Racks[gen-1] += k
+			h.Infra.Energy.GridMW += mw
+			gain := bt.effRate(&h, mgr, &d) - r0
+			c := candidate{kind: sim.PurchaseRack, idx: gen, qty: k, cost: sim.RackCost(s, b, gen, k) + sim.GridCost(b, mw), gain: gain}
+			c.cmds[0], c.n = sim.BuyRack(gen, k), 1
+			if mw > 0 {
+				c.cmds[1], c.n = sim.BuyGrid(mw), 2
+			}
+			out = append(out, c)
+		}
+	}
+	if mw := sim.GridNeededMW(s, b, 0); mw > 0 {
+		h := *base
+		h.Infra.Energy.GridMW += mw
+		gain := bt.effRate(&h, mgr, &d) - r0
+		c := candidate{kind: sim.PurchaseGrid, cost: sim.GridCost(b, mw), gain: gain}
+		c.cmds, c.n = one(sim.BuyGrid(mw))
+		out = append(out, c)
+	}
+	if sd.EnergyUsed > sd.FreeUsed {
+		h := *base
+		h.Infra.Energy.SMR++
+		gain := bt.effRate(&h, mgr, &d) - r0
+		c := candidate{kind: sim.PurchaseGrid, idx: sim.EnergySMR, cost: sim.SMRCost(s, b), gain: gain}
+		c.cmds, c.n = one(sim.BuySMR())
+		out = append(out, c)
+	}
+	return out
 }
 
 func score(c *candidate, money, rate float64) float64 {
@@ -101,8 +162,62 @@ func score(c *candidate, money, rate float64) float64 {
 	return wait + c.cost/c.gain
 }
 
+func (bt *bot) maintainInfra() {
+	s := &bt.s
+	if !s.IsUnlocked(sim.UnlockInfra) {
+		return
+	}
+	mgr := bt.managers()
+	var d sim.Derived
+	h := sim.HypoOf(s)
+	r0 := bt.effRate(&h, &mgr, &d)
+	h.Infra.CloudEnabled = !s.Infra.CloudEnabled
+	r1 := bt.effRate(&h, &mgr, &d)
+	if r1 > r0*1.01 {
+		bt.exec(sim.SetCloud(h.Infra.CloudEnabled))
+	}
+	e := &s.Infra.Energy
+	need := s.Derived.RackMW
+	if e.PPA.ExpiresS <= s.Clock && need > 0 && s.Derived.EnergyIndex < 35 {
+		if cost := sim.PPACost(bt.b, need); cost < s.Money*0.2 {
+			bt.exec(sim.BuyPPA(need))
+		}
+	}
+}
+
+const minRunS = 600
+
+func (bt *bot) maybePrestige() bool {
+	pv := sim.Preview(&bt.s, bt.b)
+	if !pv.Allowed {
+		return false
+	}
+	ratio := pv.BonusAfter / pv.BonusNow
+	if pv.RunS < minRunS || (ratio < 2 && !(ratio >= 1.3 && pv.ReturnS <= 0.35*pv.RunS)) {
+		return false
+	}
+	bt.exec(sim.PrestigeReset())
+	for _, e := range bt.evs {
+		if e.Kind == sim.EvPrestige {
+			bt.res.Prestiges = append(bt.res.Prestiges, PrestigeAt{T: bt.s.Clock, Gain: e.Amount, RunS: pv.RunS, ReturnS: pv.ReturnS})
+			bt.idle = [sim.N]float64{}
+			return true
+		}
+	}
+	return false
+}
+
+func (bt *bot) exec(c sim.Command) {
+	bt.evs = sim.Step(&bt.s, bt.b, 0, []sim.Command{c}, bt.evs[:0])
+	bt.observe(bt.evs, bt.s.Clock)
+}
+
 func (bt *bot) decide() {
-	var buf [64]candidate
+	if bt.maybePrestige() {
+		return
+	}
+	bt.maintainInfra()
+	var buf [128]candidate
 	for range 50 {
 		cands, rate := bt.candidates(buf[:0])
 		var pick *candidate
@@ -146,7 +261,10 @@ func (bt *bot) decide() {
 				pick = filler
 			}
 		}
-		bt.evs = sim.Step(&bt.s, bt.b, 0, []sim.Command{pick.cmd}, bt.evs[:0])
+		if pick.cost > bt.s.Money {
+			return
+		}
+		bt.evs = sim.Step(&bt.s, bt.b, 0, pick.cmds[:pick.n], bt.evs[:0])
 		ok := false
 		for _, e := range bt.evs {
 			switch e.Kind {
@@ -159,6 +277,12 @@ func (bt *bot) decide() {
 			case sim.EvUpgrade:
 				ok = true
 				bt.res.UpgradesN++
+			case sim.EvRack:
+				ok = true
+				bt.res.Racks += e.Count
+			case sim.EvEnergy:
+				ok = true
+				bt.res.EnergyBuys++
 			}
 		}
 		bt.observe(bt.evs, bt.s.Clock)

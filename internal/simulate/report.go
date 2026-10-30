@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"token-tycoon/internal/balance"
+	"token-tycoon/internal/econ"
 	"token-tycoon/internal/format"
 	"token-tycoon/internal/i18n"
 	"token-tycoon/internal/sim"
@@ -20,6 +21,7 @@ func WriteCSV(w io.Writer, r *Result, b *balance.Balance) error {
 	for i := range sim.N {
 		head = append(head, "owned_"+b.Businesses[i].ID)
 	}
+	head = append(head, "throttle", "cards", "prestiges")
 	if err := cw.Write(head); err != nil {
 		return err
 	}
@@ -32,6 +34,7 @@ func WriteCSV(w io.Writer, r *Result, b *balance.Balance) error {
 		for i := range sim.N {
 			row = append(row, strconv.Itoa(s.Owned[i]))
 		}
+		row = append(row, f(s.Throttle), strconv.Itoa(s.Cards), strconv.Itoa(s.Prestiges))
 		if err := cw.Write(row); err != nil {
 			return err
 		}
@@ -121,7 +124,40 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 		owned = append(owned, fmt.Sprintf("%s %d%s", c.T(i18n.BusinessKey(bz.ID)), bz.Owned, m))
 	}
 	p("%s\n", c.T("report.owned", strings.Join(owned, ", ")))
-	p("%s\n\n", c.T("report.crits", s.Stats.Crits))
+	p("%s\n", c.T("report.crits", s.Stats.Crits))
+	p1 := &b.Prestige.Layer1
+	p("%s\n", c.T("report.prestiges", len(r.Prestiges), format.Number(s.Prestige.Params, n),
+		format.Number(econ.Layer1Bonus(s.Prestige.Params, p1.BonusPerParam), n), sim.VersionName(b, s.Prestige.VersionIndex)))
+	for _, pr := range r.Prestiges {
+		p("  %-10s %s\n", format.Duration(pr.T), c.T("report.prestige_line", format.Number(pr.Gain, n), format.Duration(pr.RunS), format.Duration(pr.ReturnS)))
+	}
+	sets := 0
+	for _, done := range s.CardMods.SetsComplete {
+		if done {
+			sets++
+		}
+	}
+	p("%s\n", c.T("report.cards", s.CardMods.Unique, len(b.Card), s.Stats.CardsDropped, sets))
+	p("%s\n", c.T("report.events", s.Stats.EventsSeen, s.Stats.EventsCaught, s.Stats.EventsMissed))
+	if s.IsUnlocked(sim.UnlockInfra) {
+		var racks []string
+		for g := range b.GPUGens {
+			if s.Infra.Racks[g] > 0 {
+				racks = append(racks, fmt.Sprintf("g%d x%d", g+1, s.Infra.Racks[g]))
+			}
+		}
+		cloud := c.T("report.off")
+		if s.Infra.CloudEnabled {
+			cloud = c.T("report.on")
+		}
+		d := &s.Derived
+		p("%s\n", c.T("report.infra_state", strings.Join(racks, ", "), format.Number(d.ComputeNeed, n), format.Number(d.ComputeCap, n),
+			pct(d.Throttle), pct(d.EnergyShare), cloud))
+		if r.InfraS > 0 {
+			p("%s\n", c.T("report.infra_avg", pct(r.ThrottleS/r.InfraS), format.Duration(r.ThrottledS), format.Duration(r.CloudS)))
+		}
+	}
+	p("%s\n\n", c.T("report.grants", s.Stats.Grants, s.Streak.Day))
 
 	p("%s\n", c.T("report.timeline"))
 	tl := func(label string, t float64) {
@@ -134,6 +170,11 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 	tl(c.T("report.first_manager"), r.FirstManagerT)
 	tl(c.T("report.infra"), r.InfraT)
 	tl(c.T("report.prestige"), r.PrestigeT)
+	first := -1.0
+	if len(r.Prestiges) > 0 {
+		first = r.Prestiges[0].T
+	}
+	tl(c.T("report.first_reset"), first)
 	p("\n%s\n", c.T("report.unlocks"))
 	for _, u := range r.Unlocks {
 		p("  %-10s %s\n", format.Duration(u.T), unlockName(u.Unlock, b, c))
@@ -158,6 +199,8 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 	}
 	return fails
 }
+
+func pct(x float64) string { return strconv.FormatFloat(x*100, 'f', 1, 64) + "%" }
 
 func unlockName(u sim.Unlock, b *balance.Balance, c *i18n.Catalog) string {
 	if u.IsBusiness() {

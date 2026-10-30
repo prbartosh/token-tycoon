@@ -107,11 +107,12 @@ const (
 )
 
 type Upgrade struct {
-	ID     string   `toml:"id"`
-	Cost   float64  `toml:"cost"`
-	Target []string `toml:"target"`
-	Effect string   `toml:"effect"`
-	Value  float64  `toml:"value"`
+	ID          string   `toml:"id"`
+	Cost        float64  `toml:"cost"`
+	Target      []string `toml:"target"`
+	Effect      string   `toml:"effect"`
+	Value       float64  `toml:"value"`
+	ComputeMult float64  `toml:"compute_mult"`
 }
 
 type Infra struct {
@@ -123,15 +124,18 @@ type Infra struct {
 }
 
 type GPUGen struct {
-	Gen          int     `toml:"gen"`
-	RackCost     float64 `toml:"rack_cost"`
-	Compute      float64 `toml:"compute"`
-	MW           float64 `toml:"mw"`
-	FlopsPerRack float64 `toml:"flops_per_rack"`
+	Gen            int     `toml:"gen"`
+	RackCost       float64 `toml:"rack_cost"`
+	Compute        float64 `toml:"compute"`
+	MW             float64 `toml:"mw"`
+	FlopsPerRack   float64 `toml:"flops_per_rack"`
+	UnlockLifetime float64 `toml:"unlock_lifetime"`
 }
 
 type Energy struct {
 	GridCostCoef          float64   `toml:"grid_cost_coef"`
+	GridMWCost            float64   `toml:"grid_mw_cost"`
+	PPAMWCost             float64   `toml:"ppa_mw_cost"`
 	GridPeakAvailability  float64   `toml:"grid_peak_availability"`
 	GridPeakHours         []float64 `toml:"grid_peak_hours"`
 	IndexMean             float64   `toml:"index_mean"`
@@ -326,9 +330,40 @@ type Cards struct {
 	UnlockLifetime     float64            `toml:"unlock_lifetime"`
 	DropChancePerCycle float64            `toml:"drop_chance_per_cycle"`
 	LevelBonusMult     float64            `toml:"level_bonus_mult"`
+	MaxLevel           int                `toml:"max_level"`
 	RarityWeights      map[string]float64 `toml:"rarity_weights"`
 	SetBonus           map[string]float64 `toml:"set_bonus"`
 }
+
+const (
+	CardProfitAll      = "profit_all"
+	CardProfitBusiness = "profit_business"
+	CardComputeAll     = "compute_all"
+	CardCycleAll       = "cycle_all"
+	CardCostAll        = "cost_all"
+	CardCritChance     = "crit_chance"
+	CardCritMult       = "crit_mult"
+	CardCardChance     = "card_chance"
+	CardReactionReward = "reaction_reward"
+	CardEnergyCost     = "energy_cost"
+	CardRackCost       = "rack_cost"
+	CardOffline        = "offline"
+	CardTrainingSpeed  = "training_speed"
+	CardRevealRatio    = "reveal_optimal_ratio"
+)
+
+var Rarities = [...]string{"common", "rare", "epic", "legendary"}
+
+const MaxCards = 128
+
+const (
+	EventProfit      = "profit"
+	EventProfitTiers = "profit_tiers"
+	EventCardChance  = "card_chance"
+	EventRackCost    = "rack_cost"
+	EventHype        = "hype"
+	EventReaction    = "reaction"
+)
 
 type Card struct {
 	ID     string  `toml:"id"`

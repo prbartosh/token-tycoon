@@ -17,6 +17,21 @@ const (
 	EvStart
 	EvCombo
 	EvComboEnd
+	EvRack
+	EvRackSold
+	EvEnergy
+	EvPPAExpired
+	EvCloud
+	EvStarter
+	EvGPUGen
+	EvPrestige
+	EvCard
+	EvCardSet
+	EvEventStart
+	EvEventEnd
+	EvReact
+	EvReactMiss
+	EvGrant
 )
 
 type Reject uint8
@@ -30,6 +45,16 @@ const (
 	RejectNothingToUndo
 	RejectInvalid
 	RejectBusy
+	RejectNoEvent
+	RejectAlreadyClaimed
+	RejectBadDate
+)
+
+const (
+	EnergyGrid = iota
+	EnergyPPA
+	EnergySMR
+	EnergyOrbital
 )
 
 type Event struct {
@@ -38,6 +63,8 @@ type Event struct {
 	Index    int
 	Count    int
 	Amount   float64
+	Value    float64
 	Reason   Reject
 	Cmd      CommandKind
+	Purchase PurchaseKind
 }

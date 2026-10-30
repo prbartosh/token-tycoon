@@ -1,0 +1,377 @@
+// Package ui is the Bubble Tea front end of Token Tycoon. It owns the frame
+// loop, input, layout and animations; the game itself lives in sim and the UI
+// only reads its state and sends commands.
+package ui
+
+import (
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
+
+	"token-tycoon/internal/balance"
+	"token-tycoon/internal/format"
+	"token-tycoon/internal/i18n"
+	"token-tycoon/internal/sim"
+	"token-tycoon/internal/ui/anim"
+	"token-tycoon/internal/ui/theme"
+)
+
+type Config struct {
+	Balance        *balance.Balance
+	State          *sim.State
+	Catalog        *i18n.Catalog
+	Profile        colorprofile.Profile
+	Debug          bool
+	Save           func(*sim.State) error
+	OfflineElapsed float64
+	Notice         string
+	Now            func() time.Time
+}
+
+const (
+	tabBusinesses = iota
+	tabModels
+	tabMarket
+	tabInfra
+	tabResearch
+	tabRules
+	tabStats
+	numTabs
+)
+
+const (
+	topRows      = 3
+	bottomRows   = 3
+	minHeight    = 14
+	catchUpLimit = 60 * time.Second
+	doubleClick  = 400 * time.Millisecond
+	statusFor    = 3 * time.Second
+	newsEvery    = 20 * time.Second
+	logCap       = 64
+	sparkLen     = 60
+	rateWindow   = 5
+	manualDelayS = 1.0
+)
+
+const noUnlock = sim.Unlock(255)
+
+var tabUnlock = [numTabs]sim.Unlock{noUnlock, sim.UnlockTraining, sim.UnlockMarket, sim.UnlockInfra,
+	sim.UnlockResearch, sim.UnlockRules, noUnlock}
+
+var tabKeys = [numTabs]string{"tab.businesses", "tab.models", "tab.market", "tab.infra",
+	"tab.research", "tab.rules", "tab.stats"}
+
+var qtys = [4]int{sim.Qty1, sim.Qty10, sim.Qty100, sim.QtyMax}
+
+type frameMsg struct {
+	gen int
+	t   time.Time
+}
+
+type away struct {
+	res  sim.OfflineResult
+	open bool
+}
+
+type Model struct {
+	b     *balance.Balance
+	s     *sim.State
+	cat   *i18n.Catalog
+	th    *theme.Theme
+	now   func() time.Time
+	save  func(*sim.State) error
+	debug bool
+
+	width, height int
+	focused       bool
+	tab           int
+	newTab        [numTabs]bool
+	sel           row
+	scroll        int
+	qty           int
+	help          bool
+	away          away
+
+	gen      int
+	interval time.Duration
+	last     time.Time
+	acc      time.Duration
+	step     time.Duration
+	lastSave time.Time
+	fps      float64
+
+	evs  []sim.Event
+	cmds []sim.Command
+	anim anim.Animator
+
+	spark      [sparkLen]float64
+	sparkN     int
+	sparkAcc   float64
+	sparkSteps int
+
+	status     string
+	statusAt   time.Time
+	statusWarn bool
+	log        []string
+	newsIdx    int
+	newsAt     time.Time
+
+	adv       advice
+	advAt     float64
+	lastFloat [sim.N]float64
+
+	lastClick    time.Time
+	lastClickRow int
+
+	rows   []row
+	lines  []string
+	sb     strings.Builder
+	canvas *lipgloss.Canvas
+}
+
+func New(cfg Config) *Model {
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
+	b := cfg.Balance
+	m := &Model{
+		b: b, s: cfg.State, cat: cfg.Catalog, now: now, save: cfg.Save, debug: cfg.Debug,
+		th:      theme.New(b.UI.Colors, cfg.Profile),
+		focused: true,
+		evs:     make([]sim.Event, 0, 256),
+		cmds:    make([]sim.Command, 0, 4),
+		log:     make([]string, 0, logCap),
+		rows:    make([]row, 0, 32),
+		lines:   make([]string, 0, 64),
+		step:    time.Duration(max(1, b.Engine.SimStepMs)) * time.Millisecond,
+		sel:     row{kind: rowBusiness, idx: 0},
+	}
+	t0 := now()
+	m.lastSave, m.newsAt = t0, t0
+	if cfg.OfflineElapsed > 0 {
+		m.catchUp(cfg.OfflineElapsed, true)
+	}
+	m.anim.Money.Jump(m.s.Money)
+	m.anim.Counter.Rate = 0.08
+	if cfg.Notice != "" {
+		m.setStatus(cfg.Notice, false)
+	}
+	m.refreshAdvisor()
+	return m
+}
+
+func (m *Model) State() *sim.State { return m.s }
+
+func (m *Model) Init() tea.Cmd {
+	m.interval = m.desired()
+	return m.tick(m.interval)
+}
+
+func (m *Model) tick(d time.Duration) tea.Cmd {
+	gen := m.gen
+	return tea.Tick(d, func(t time.Time) tea.Msg { return frameMsg{gen: gen, t: t} })
+}
+
+func fpsInterval(fps int) time.Duration {
+	if fps <= 0 {
+		fps = 1
+	}
+	return time.Second / time.Duration(fps)
+}
+
+func (m *Model) desired() time.Duration {
+	e := &m.b.Engine
+	switch {
+	case !m.focused:
+		return fpsInterval(e.FPSBackground)
+	case m.anim.Active() || m.away.open && m.anim.Counter.Moving():
+		return fpsInterval(e.FPSAnimation)
+	}
+	return fpsInterval(e.FPSNormal)
+}
+
+func (m *Model) kick() tea.Cmd {
+	d := m.desired()
+	if m.interval != 0 && d >= m.interval {
+		return nil
+	}
+	m.gen++
+	m.interval = d
+	return m.tick(d)
+}
+
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case frameMsg:
+		return m, m.frame(msg)
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.ensureVisible()
+		return m, nil
+	case tea.FocusMsg:
+		m.focused = true
+		return m, m.kick()
+	case tea.BlurMsg:
+		m.focused = false
+		return m, nil
+	case tea.KeyPressMsg:
+		return m.key(msg)
+	case tea.MouseClickMsg:
+		return m, m.click(msg.Mouse())
+	case tea.MouseWheelMsg:
+		m.wheel(msg.Mouse())
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m *Model) frame(msg frameMsg) tea.Cmd {
+	if msg.gen != m.gen {
+		return nil
+	}
+	if m.last.IsZero() {
+		m.last = msg.t
+	}
+	dt := msg.t.Sub(m.last)
+	m.last = msg.t
+	if dt < 0 {
+		dt = 0
+	}
+	m.advance(dt)
+	if dt > 0 {
+		m.fps = m.fps*0.8 + 0.2/dt.Seconds()
+	}
+	m.autosave(msg.t)
+	if now := m.now(); now.Sub(m.newsAt) >= newsEvery {
+		m.newsAt = now
+		m.newsIdx++
+	}
+	m.interval = m.desired()
+	return m.tick(m.interval)
+}
+
+func (m *Model) advance(dt time.Duration) {
+	if dt > catchUpLimit {
+		m.catchUp(dt.Seconds(), true)
+	} else {
+		m.acc += dt
+		for m.acc >= m.step {
+			m.stepOnce()
+			m.acc -= m.step
+		}
+	}
+	m.anim.Money.Set(m.s.Money)
+	m.anim.Advance(dt.Seconds())
+}
+
+func (m *Model) stepOnce() {
+	before := m.s.Lifetime.Total
+	m.evs = sim.Step(m.s, m.b, m.step.Seconds(), nil, m.evs[:0])
+	m.consume(m.evs, false)
+	m.track(m.s.Lifetime.Total - before)
+	if m.s.Clock-m.advAt >= 1 {
+		m.refreshAdvisor()
+	}
+}
+
+func (m *Model) catchUp(elapsed float64, show bool) {
+	res, evs := sim.Offline(m.s, m.b, elapsed, m.evs[:0])
+	m.evs = evs
+	m.consume(m.evs, true)
+	if show && res.Simulated >= m.b.Engine.OfflineStepS {
+		m.away = away{res: res, open: true}
+		m.anim.Counter.Jump(0)
+		m.anim.Counter.Set(res.Earned)
+		m.anim.Money.Jump(m.s.Money)
+	}
+	m.refreshAdvisor()
+}
+
+func (m *Model) track(earned float64) {
+	m.sparkAcc += earned
+	m.sparkSteps++
+	if float64(m.sparkSteps)*m.step.Seconds() < 1 {
+		return
+	}
+	v := m.sparkAcc / (float64(m.sparkSteps) * m.step.Seconds())
+	copy(m.spark[:], m.spark[1:])
+	m.spark[sparkLen-1] = v
+	m.sparkN = min(sparkLen, m.sparkN+1)
+	m.sparkAcc, m.sparkSteps = 0, 0
+}
+
+func (m *Model) rate() float64 {
+	n := min(rateWindow, m.sparkN)
+	measured := 0.0
+	if n > 0 {
+		for _, v := range m.spark[sparkLen-n:] {
+			measured += v
+		}
+		measured /= float64(n)
+	}
+	return max(measured, m.s.Derived.IncomePerSec)
+}
+
+func (m *Model) autosave(now time.Time) {
+	if m.save == nil || now.Sub(m.lastSave).Seconds() < m.b.Engine.AutosaveS {
+		return
+	}
+	m.lastSave = now
+	if err := m.save(m.s); err != nil {
+		m.setStatus(m.cat.T("ui.msg.save_failed", err), true)
+	}
+}
+
+func (m *Model) exec(c sim.Command) tea.Cmd {
+	m.cmds = append(m.cmds[:0], c)
+	m.evs = sim.Step(m.s, m.b, 0, m.cmds, m.evs[:0])
+	m.consume(m.evs, false)
+	m.anim.Money.Set(m.s.Money)
+	m.refreshAdvisor()
+	return m.kick()
+}
+
+func (m *Model) setStatus(s string, warn bool) {
+	m.status, m.statusAt, m.statusWarn = s, m.now(), warn
+}
+
+func (m *Model) addLog(s string) {
+	if len(m.log) == logCap {
+		copy(m.log, m.log[1:])
+		m.log = m.log[:logCap-1]
+	}
+	m.log = append(m.log, s)
+}
+
+func (m *Model) notation() format.Notation { return format.ParseNotation(m.s.Settings.Notation) }
+
+func (m *Model) num(v float64) string { return format.Number(v, m.notation()) }
+
+func (m *Model) money(v float64) string { return format.Money(v, m.notation()) }
+
+func (m *Model) bizName(i int) string {
+	return m.cat.T(i18n.BusinessKey(m.b.Businesses[i].ID))
+}
+
+func (m *Model) upgName(u int) string { return m.cat.T(i18n.UpgradeKey(m.b.Upgrades[u].ID)) }
+
+func (m *Model) unlocked(u sim.Unlock) bool { return u == noUnlock || m.s.IsUnlocked(u) }
+
+func (m *Model) unlockName(u sim.Unlock) string {
+	if u.IsBusiness() {
+		return m.cat.T("unlock.business", m.bizName(u.Business()))
+	}
+	return m.cat.T(i18n.UnlockKey(u.Name()))
+}
+
+func (m *Model) undoLeft() float64 {
+	u := &m.s.Undo
+	if u.Kind == sim.PurchaseNone {
+		return 0
+	}
+	return max(0, m.b.Engine.UndoWindowS-(m.s.Clock-u.AtS))
+}

@@ -9,6 +9,7 @@ import (
 	"math/bits"
 
 	"token-tycoon/internal/balance"
+	"token-tycoon/internal/cards"
 	"token-tycoon/internal/rng"
 )
 
@@ -37,6 +38,8 @@ type State struct {
 	Money    float64     `json:"money"`
 	Lifetime Lifetime    `json:"lifetime"`
 
+	GlobalMilestones int `json:"global_milestones"`
+
 	Businesses [N]Business `json:"-"`
 	Upgrades   Bitset      `json:"-"`
 	Unlocks    Bitset      `json:"-"`
@@ -57,9 +60,10 @@ type State struct {
 	Settings     Settings       `json:"settings"`
 	Stats        Stats          `json:"stats"`
 
-	Combo   Combo   `json:"-"`
-	Undo    Undo    `json:"-"`
-	Derived Derived `json:"-"`
+	CardMods cards.Mods `json:"-"`
+	Combo    Combo      `json:"-"`
+	Undo     Undo       `json:"-"`
+	Derived  Derived    `json:"-"`
 }
 
 type Lifetime struct {
@@ -164,6 +168,7 @@ type Prestige struct {
 	RoundIndex     int     `json:"round_index"`
 	ResetsL1       int     `json:"resets_l1"`
 	ResetsL2       int     `json:"resets_l2"`
+	RunStartS      float64 `json:"run_start_s"`
 }
 
 type AGI struct {
@@ -199,6 +204,11 @@ type Stats struct {
 	Purchases    int     `json:"purchases"`
 	ManualStarts int     `json:"manual_starts"`
 	BoostPresses int     `json:"boost_presses"`
+	EventsSeen   int     `json:"events_seen"`
+	EventsMissed int     `json:"events_missed"`
+	CardsDropped int     `json:"cards_dropped"`
+	Grants       int     `json:"grants"`
+	BestIncome   float64 `json:"best_income"`
 }
 
 type Combo struct {
@@ -213,15 +223,20 @@ const (
 	PurchaseBusiness
 	PurchaseManager
 	PurchaseUpgrade
+	PurchaseRack
+	PurchaseGrid
 )
 
 type Undo struct {
-	Kind     PurchaseKind
-	Business int
-	Upgrade  int
-	Qty      int
-	Cost     float64
-	AtS      float64
+	Kind       PurchaseKind
+	Business   int
+	Upgrade    int
+	Gen        int
+	Qty        int
+	MW         float64
+	Cost       float64
+	AtS        float64
+	PrevGlobal int
 }
 
 func NewState(b *balance.Balance, seed uint64) State {
@@ -234,15 +249,18 @@ func NewState(b *balance.Balance, seed uint64) State {
 		Market:   Market{Segments: Segments{Pro: 1}, PricePressure: 1, UnlockedRegions: []string{}},
 		Combo:    Combo{Mult: 1},
 	}
-	free := b.FreeOwned()
-	for i := range s.Businesses {
-		s.Businesses[i].ID = b.Businesses[i].ID
-		s.Businesses[i].Owned = free[i]
-		s.Businesses[i].DrawBudget = b.BusinessDefaults.DrawCapPerS
-	}
+	resetBusinesses(&s, b)
+	cards.Compute(b, s.Cards, &s.CardMods)
 	checkUnlocks(&s, b, nil)
 	Recompute(&s, b)
 	return s
+}
+
+func resetBusinesses(s *State, b *balance.Balance) {
+	free := b.FreeOwned()
+	for i := range s.Businesses {
+		s.Businesses[i] = Business{ID: b.Businesses[i].ID, Owned: free[i], DrawBudget: b.BusinessDefaults.DrawCapPerS}
+	}
 }
 
 func Normalize(s *State, b *balance.Balance) {
@@ -269,6 +287,21 @@ func Normalize(s *State, b *balance.Balance) {
 		}
 		bz.DrawBudget = math.Min(bz.DrawBudget, b.BusinessDefaults.DrawCapPerS)
 	}
+	for g := len(b.GPUGens); g < balance.MaxGPUGens; g++ {
+		s.Infra.Racks[g] = 0
+	}
+	for g := range s.Infra.Racks {
+		s.Infra.Racks[g] = max(0, s.Infra.Racks[g])
+	}
+	if s.RandomEvent.ActiveID != "" {
+		if _, ok := b.EventIndex(s.RandomEvent.ActiveID); !ok {
+			s.RandomEvent.ActiveID = ""
+		}
+	}
+	s.GlobalMilestones = max(0, s.GlobalMilestones)
+	s.Prestige.RunStartS = math.Min(math.Max(0, s.Prestige.RunStartS), s.Clock)
+	cards.Compute(b, s.Cards, &s.CardMods)
 	checkUnlocks(s, b, nil)
+	updateGens(s, b, nil)
 	Recompute(s, b)
 }

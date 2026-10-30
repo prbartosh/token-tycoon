@@ -11,6 +11,7 @@ import (
 
 var migrations = map[int]func(raw map[string]any) error{
 	1: migrate1to2,
+	2: migrate2to3,
 }
 
 func migrate(raw map[string]any) error {
@@ -129,4 +130,43 @@ func uint64Of(v any) (uint64, error) {
 		return uint64(x), nil
 	}
 	return 0, fmt.Errorf("not an unsigned integer: %v", v)
+}
+
+func migrate2to3(raw map[string]any) error {
+	if infra, ok := raw["infra"].(map[string]any); ok {
+		racks, _ := infra["racks"].([]any)
+		hasRacks := false
+		for i, v := range racks {
+			n, err := intOf(v)
+			if err != nil {
+				return fmt.Errorf("infra.racks[%d]: %w", i, err)
+			}
+			hasRacks = hasRacks || n > 0
+		}
+		if hasRacks {
+			infra["starter_given"] = true
+		}
+	}
+	p, _ := raw["prestige"].(map[string]any)
+	if p == nil {
+		return nil
+	}
+	if _, ok := p["run_start_s"]; ok {
+		return nil
+	}
+	resets := 0
+	if v, ok := p["resets_l1"]; ok {
+		n, err := intOf(v)
+		if err != nil {
+			return fmt.Errorf("prestige.resets_l1: %w", err)
+		}
+		resets = n
+	}
+	p["run_start_s"] = 0
+	if resets > 0 {
+		if c, ok := raw["clock_s"]; ok {
+			p["run_start_s"] = c
+		}
+	}
+	return nil
 }

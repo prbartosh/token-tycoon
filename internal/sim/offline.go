@@ -19,7 +19,7 @@ func OfflineCapS(s *State, b *balance.Balance) float64 {
 }
 
 func OfflineEfficiency(s *State, b *balance.Balance) float64 {
-	return b.Offline.EfficiencyStart
+	return math.Min(b.Offline.EfficiencyMax, b.Offline.EfficiencyStart+s.CardMods.Offline)
 }
 
 func Offline(s *State, b *balance.Balance, elapsed float64, out []Event) (OfflineResult, []Event) {

@@ -108,10 +108,14 @@ func NextBusinessThreshold(owned int, speed []int, profitStart, profitEvery int)
 }
 
 func MultPow(mult float64, n int) float64 {
-	if n == 0 {
-		return 1
+	if n < 0 || n > 64 {
+		return math.Pow(mult, float64(n))
 	}
-	return math.Pow(mult, float64(n))
+	r := 1.0
+	for range n {
+		r *= mult
+	}
+	return r
 }
 
 func CritEV(p, m float64) float64 { return 1 + p*(m-1) }

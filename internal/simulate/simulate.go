@@ -1,12 +1,15 @@
 // Package simulate runs bots against the simulation to check the balance
 // curve (ARCHITECTURE 9): greedy, passive (short daily sessions + offline)
-// and random strategies, CSV export and an acceptance report.
+// and random strategies, CSV export and an acceptance report. Bots buy
+// businesses and infrastructure, prestige by the preview, react to events with
+// a human-like probability and delay, and claim the daily grant.
 package simulate
 
 import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"time"
 
 	"token-tycoon/internal/balance"
 	"token-tycoon/internal/sim"
@@ -59,6 +62,9 @@ type Sample struct {
 	Upgrades   int
 	Combo      float64
 	Online     bool
+	Throttle   float64
+	Cards      int
+	Prestiges  int
 }
 
 type Purchase struct {
@@ -72,6 +78,13 @@ type Purchase struct {
 type UnlockAt struct {
 	T      float64
 	Unlock sim.Unlock
+}
+
+type PrestigeAt struct {
+	T       float64
+	Gain    float64
+	RunS    float64
+	ReturnS float64
 }
 
 type Session struct {
@@ -96,6 +109,22 @@ type Result struct {
 	Businesses    int
 	Managers      int
 	UpgradesN     int
+	Racks         int
+	EnergyBuys    int
+	Prestiges     []PrestigeAt
+	Reactions     int
+	ReactTried    int
+	InfraS        float64
+	ThrottleS     float64
+	ThrottledS    float64
+	CloudS        float64
+}
+
+var grantEpoch = time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
+
+type pendingReact struct {
+	at  float64
+	key string
 }
 
 type bot struct {
@@ -112,6 +141,8 @@ type bot struct {
 	nextSmp     float64
 	session     *Session
 	flatHorizon float64
+	reacts      []pendingReact
+	grantDay    int
 }
 
 func Run(b *balance.Balance, cfg Config) (*Result, error) {
@@ -125,13 +156,14 @@ func Run(b *balance.Balance, cfg Config) (*Result, error) {
 		return nil, fmt.Errorf("simulate: duration must be > 0")
 	}
 	bt := &bot{
-		cfg:  cfg,
-		b:    b,
-		s:    sim.NewState(b, cfg.Seed),
-		res:  &Result{Config: cfg, FirstManagerT: -1, InfraT: -1, PrestigeT: -1},
-		evs:  make([]sim.Event, 0, 256),
-		cmds: make([]sim.Command, 0, 16),
-		rnd:  rand.New(rand.NewPCG(cfg.Seed, 0xB07)),
+		cfg:      cfg,
+		b:        b,
+		s:        sim.NewState(b, cfg.Seed),
+		res:      &Result{Config: cfg, FirstManagerT: -1, InfraT: -1, PrestigeT: -1},
+		evs:      make([]sim.Event, 0, 256),
+		cmds:     make([]sim.Command, 0, 16),
+		rnd:      rand.New(rand.NewPCG(cfg.Seed, 0xB07)),
+		grantDay: -1,
 	}
 	if cfg.Strategy == Passive {
 		bt.runPassive()
@@ -176,18 +208,67 @@ func (bt *bot) active(d float64) {
 		step := math.Min(dt, end-bt.s.Clock)
 		bt.cmds = bt.cmds[:0]
 		bt.clicks(step)
+		bt.reactions()
+		bt.grant()
 		if bt.s.Clock >= bt.nextDec {
 			bt.decide()
 			every := 0.5
-			if bt.s.Clock > 3600 {
+			if bt.s.Clock-bt.s.Prestige.RunStartS > 3600 {
 				every = 2
 			}
 			bt.nextDec = bt.s.Clock + every
 		}
 		bt.evs = sim.Step(&bt.s, bt.b, step, bt.cmds, bt.evs[:0])
 		bt.observe(bt.evs, bt.s.Clock)
+		bt.track(step)
 		bt.sample(false)
 	}
+}
+
+func (bt *bot) track(dt float64) {
+	if !bt.s.IsUnlocked(sim.UnlockInfra) {
+		return
+	}
+	d := &bt.s.Derived
+	bt.res.InfraS += dt
+	bt.res.ThrottleS += d.Throttle * dt
+	if d.Throttle < 0.95 {
+		bt.res.ThrottledS += dt
+	}
+	if bt.s.Infra.CloudEnabled {
+		bt.res.CloudS += dt
+	}
+}
+
+func (bt *bot) reactProfile() (p, lo, hi float64) {
+	switch bt.cfg.Strategy {
+	case Passive:
+		return 0.75, 0.8, 5
+	case Random:
+		return 0.5, 0.5, 8
+	}
+	return 0.85, 0.6, 3.5
+}
+
+func (bt *bot) reactions() {
+	keep := bt.reacts[:0]
+	for _, r := range bt.reacts {
+		if bt.s.Clock >= r.at {
+			bt.cmds = append(bt.cmds, sim.React(r.key))
+			continue
+		}
+		keep = append(keep, r)
+	}
+	bt.reacts = keep
+}
+
+func (bt *bot) grant() {
+	day := int(bt.s.Clock / 86400)
+	if day <= bt.grantDay || !(bt.s.Derived.BaseIncome > 0) {
+		return
+	}
+	bt.grantDay = day
+	bt.cmds = append(bt.cmds, sim.ClaimGrant(grantEpoch.AddDate(0, 0, day).Format("2006-01-02")))
 }
 
 func (bt *bot) clicks(dt float64) {
@@ -230,6 +311,18 @@ func (bt *bot) observe(evs []sim.Event, t float64) {
 			if bt.res.FirstManagerT < 0 {
 				bt.res.FirstManagerT = t
 			}
+		case sim.EvEventStart:
+			ev := &bt.b.Event[e.Index]
+			if ev.Effect != balance.EventReaction || (bt.cfg.Strategy == Passive && bt.session == nil) {
+				continue
+			}
+			bt.res.ReactTried++
+			p, lo, hi := bt.reactProfile()
+			if bt.rnd.Float64() < p {
+				bt.reacts = append(bt.reacts, pendingReact{at: t + lo + (hi-lo)*bt.rnd.Float64(), key: ev.Key})
+			}
+		case sim.EvReact:
+			bt.res.Reactions++
 		}
 	}
 }
@@ -252,7 +345,8 @@ func (bt *bot) sample(force bool) {
 		T: t, Money: s.Money, IncomePerS: s.Derived.IncomePerSec, Lifetime: s.Lifetime.Total,
 		Run: s.Lifetime.Run, Params: s.Prestige.Params, Capital: s.Prestige.Capital,
 		Unlocks: s.Unlocks.Count(), Upgrades: s.Upgrades.Count(), Combo: s.Combo.Mult,
-		Online: bt.session != nil || bt.cfg.Strategy != Passive,
+		Online:   bt.session != nil || bt.cfg.Strategy != Passive,
+		Throttle: s.Derived.Throttle, Cards: s.CardMods.Unique, Prestiges: s.Prestige.ResetsL1,
 	}
 	for i := range sim.N {
 		sm.Owned[i] = s.Businesses[i].Owned

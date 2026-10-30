@@ -186,6 +186,7 @@ global_mult = 2.0
 
 # ---------------------------------------------------------------- upgrades
 # target: list of business ids or ["all"]; effect: profit | cost | cycle | compute
+# compute_mult (optional): extra compute-per-unit multiplier on the targets, independent of effect
 [[upgrade]]
 id = "prompt_caching"
 cost = 5e3
@@ -241,6 +242,7 @@ cost = 3e9
 target = ["agent_swarm", "reasoning_model", "gpu_rental"]
 effect = "profit"
 value = 3.0
+compute_mult = 0.85            # secondary effect: compute per unit of the targets x0.85
 
 [[upgrade]]
 id = "distillation"
@@ -255,14 +257,17 @@ unlock_lifetime = 1e7          # DECISIONS item 13, target ~20-30 min of play
 starter_headroom = 1.2         # starter cluster = demand * 1.2
 rack_r = 1.12
 rack_sellback = 0.3
-cloud_revenue_share = 0.15
+cloud_revenue_share = 0.15     # while cloud is enabled: unlimited compute for 15% of all revenue
 
+# unlock_lifetime: lifetime revenue that makes the generation available. Research (DESIGN 5.1)
+# arrives in M4; until then generations open with the day-by-day thresholds of DESIGN 10.
 [[gpu_gen]]
 gen = 1
 rack_cost = 5e5
 compute = 100
 mw = 0.5
 flops_per_rack = 1e14
+unlock_lifetime = 1e7
 
 [[gpu_gen]]
 gen = 2
@@ -270,6 +275,7 @@ rack_cost = 3e6
 compute = 1e3
 mw = 1.5
 flops_per_rack = 1e15
+unlock_lifetime = 1e10
 
 [[gpu_gen]]
 gen = 3
@@ -277,6 +283,7 @@ rack_cost = 1.8e7
 compute = 1e4
 mw = 4.5
 flops_per_rack = 1e16
+unlock_lifetime = 1e13
 
 [[gpu_gen]]
 gen = 4
@@ -284,6 +291,7 @@ rack_cost = 1.08e8
 compute = 1e5
 mw = 13.5
 flops_per_rack = 1e17
+unlock_lifetime = 1e17
 
 [[gpu_gen]]
 gen = 5
@@ -291,6 +299,7 @@ rack_cost = 6.5e8
 compute = 1e6
 mw = 40.5
 flops_per_rack = 1e18
+unlock_lifetime = 1e22
 
 [[gpu_gen]]
 gen = 6
@@ -298,9 +307,12 @@ rack_cost = 3.9e9
 compute = 1e7
 mw = 121.5
 flops_per_rack = 1e19
+unlock_lifetime = 1e29
 
 [energy]
 grid_cost_coef = 0.08          # cost = revenue * grid_share * coef * (index / 50)
+grid_mw_cost = 1e5             # $ per MW of grid connection (cheap capacity, DESIGN 5.2)
+ppa_mw_cost = 2e5              # $ per MW of a PPA contract (fixed index, no peak cut, ppa_days long)
 grid_peak_availability = 0.7
 grid_peak_hours = [17, 21]
 index_mean = 50
@@ -600,9 +612,16 @@ duration_s = 120
 unlock_lifetime = 1e7          # day-1 system, opens with infrastructure (see header)
 drop_chance_per_cycle = 0.0005
 level_bonus_mult = 1.5         # every duplicate multiplies the card bonus by 1.5
+max_level = 5                  # duplicates beyond this level are counted but add no bonus
 rarity_weights = { common = 70, rare = 22, epic = 7, legendary = 1 }
 set_bonus = { common = 0.1, rare = 0.25, epic = 0.5, legendary = 1.0 }
 
+# effect: profit_all | profit_business (needs target) | cycle_all | crit_chance | crit_mult |
+#         card_chance | reaction_reward | offline | training_speed | reveal_optimal_ratio
+#         (positive value = bonus) and compute_all | cost_all | energy_cost | rack_cost
+#         (negative value = reduction). Bonuses of the same effect add up, then apply once.
+#         training_speed and reveal_optimal_ratio take effect with training (M3).
+# common
 [[card]]
 id = "dropout"
 rarity = "common"
@@ -615,6 +634,96 @@ rarity = "common"
 effect = "training_speed"
 value = 0.03
 
+[[card]]
+id = "relu"
+rarity = "common"
+effect = "profit_all"
+value = 0.02
+
+[[card]]
+id = "batch_norm"
+rarity = "common"
+effect = "cycle_all"
+value = 0.02
+
+[[card]]
+id = "sgd_momentum"
+rarity = "common"
+effect = "cycle_all"
+value = 0.02
+
+[[card]]
+id = "word2vec"
+rarity = "common"
+effect = "profit_business"
+target = "api_wrapper"
+value = 0.25
+
+[[card]]
+id = "beam_search"
+rarity = "common"
+effect = "profit_business"
+target = "rag_chatbot"
+value = 0.25
+
+[[card]]
+id = "label_smoothing"
+rarity = "common"
+effect = "profit_business"
+target = "lora_finetune"
+value = 0.25
+
+[[card]]
+id = "residual"
+rarity = "common"
+effect = "profit_business"
+target = "vibe_studio"
+value = 0.25
+
+[[card]]
+id = "bpe"
+rarity = "common"
+effect = "profit_business"
+target = "agent_swarm"
+value = 0.25
+
+[[card]]
+id = "grad_clipping"
+rarity = "common"
+effect = "crit_chance"
+value = 0.002
+
+[[card]]
+id = "layer_norm"
+rarity = "common"
+effect = "cost_all"
+value = -0.02
+
+[[card]]
+id = "weight_decay"
+rarity = "common"
+effect = "compute_all"
+value = -0.03
+
+[[card]]
+id = "early_stopping"
+rarity = "common"
+effect = "energy_cost"
+value = -0.03
+
+[[card]]
+id = "data_augmentation"
+rarity = "common"
+effect = "card_chance"
+value = 0.05
+
+[[card]]
+id = "lr_warmup"
+rarity = "common"
+effect = "offline"
+value = 0.02
+
+# rare
 [[card]]
 id = "lora_paper"
 rarity = "rare"
@@ -630,6 +739,69 @@ target = "rag_chatbot"
 value = 0.5
 
 [[card]]
+id = "chain_of_thought"
+rarity = "rare"
+effect = "profit_business"
+target = "reasoning_model"
+value = 0.5
+
+[[card]]
+id = "react_agents"
+rarity = "rare"
+effect = "profit_business"
+target = "agent_swarm"
+value = 0.5
+
+[[card]]
+id = "flash_attention"
+rarity = "rare"
+effect = "cycle_all"
+value = 0.05
+
+[[card]]
+id = "speculative_paper"
+rarity = "rare"
+effect = "cycle_all"
+value = 0.05
+
+[[card]]
+id = "scaling_laws"
+rarity = "rare"
+effect = "profit_all"
+value = 0.08
+
+[[card]]
+id = "quantization_paper"
+rarity = "rare"
+effect = "cost_all"
+value = -0.05
+
+[[card]]
+id = "paged_attention"
+rarity = "rare"
+effect = "compute_all"
+value = -0.05
+
+[[card]]
+id = "rlhf"
+rarity = "rare"
+effect = "reaction_reward"
+value = 0.25
+
+[[card]]
+id = "instruct_gpt"
+rarity = "rare"
+effect = "crit_mult"
+value = 0.5
+
+[[card]]
+id = "green_ai"
+rarity = "rare"
+effect = "energy_cost"
+value = -0.05
+
+# epic
+[[card]]
 id = "chinchilla"
 rarity = "epic"
 effect = "reveal_optimal_ratio"
@@ -642,10 +814,65 @@ effect = "compute_all"
 value = -0.1
 
 [[card]]
+id = "gpt3_fewshot"
+rarity = "epic"
+effect = "profit_all"
+value = 0.2
+
+[[card]]
+id = "alphago"
+rarity = "epic"
+effect = "crit_chance"
+value = 0.01
+
+[[card]]
+id = "ring_attention"
+rarity = "epic"
+effect = "cycle_all"
+value = 0.1
+
+[[card]]
+id = "sparse_gpu_kernels"
+rarity = "epic"
+effect = "rack_cost"
+value = -0.1
+
+[[card]]
+id = "distillation_paper"
+rarity = "epic"
+effect = "offline"
+value = 0.05
+
+[[card]]
+id = "constitutional_ai"
+rarity = "epic"
+effect = "reaction_reward"
+value = 0.5
+
+# legendary
+[[card]]
 id = "attention"
 rarity = "legendary"
 effect = "profit_all"
 value = 1.0
+
+[[card]]
+id = "backprop"
+rarity = "legendary"
+effect = "cycle_all"
+value = 0.25
+
+[[card]]
+id = "bitter_lesson"
+rarity = "legendary"
+effect = "compute_all"
+value = -0.25
+
+[[card]]
+id = "imagenet"
+rarity = "legendary"
+effect = "card_chance"
+value = 0.25
 
 # ---------------------------------------------------------------- rules (automation)
 [rules]

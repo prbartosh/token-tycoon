@@ -83,3 +83,26 @@ func TestStrategies(t *testing.T) {
 		t.Fatal("unknown strategy accepted")
 	}
 }
+
+func TestGreedyUsesM2Systems(t *testing.T) {
+	b := balance.Default()
+	r, err := Run(b, Config{Duration: 2 * 3600, Strategy: Greedy, Seed: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &r.Final
+	if r.InfraT < 0 || !s.Infra.StarterGiven || len(r.Prestiges) == 0 || s.Prestige.Params <= 0 {
+		t.Fatalf("infra %v prestiges %d params %v", r.InfraT, len(r.Prestiges), s.Prestige.Params)
+	}
+	if r.Racks == 0 || s.Stats.EventsSeen == 0 || r.Reactions == 0 || s.Stats.Grants != 1 || s.Stats.CardsDropped == 0 {
+		t.Fatalf("racks %d events %d reactions %d grants %d cards %d", r.Racks, s.Stats.EventsSeen, r.Reactions, s.Stats.Grants, s.Stats.CardsDropped)
+	}
+	if r.ThrottleS/r.InfraS < 0.9 {
+		t.Fatalf("bot leaves production throttled: %v", r.ThrottleS/r.InfraS)
+	}
+	var out bytes.Buffer
+	Report(&out, r, b, i18n.New(i18n.PL))
+	if strings.Contains(out.String(), "!report") {
+		t.Fatal(out.String())
+	}
+}

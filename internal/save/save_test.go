@@ -23,6 +23,12 @@ func played(b *balance.Balance) sim.State {
 	}
 	s.Cards["dropout"] = 2
 	s.Infra.Racks[1] = 3
+	s.Lifetime.Total = 2e12
+	s.Lifetime.Run = 2e12
+	for range 3000 {
+		evs = sim.Step(&s, b, 0.1, []sim.Command{sim.React("h"), sim.ClaimGrant("2026-10-30")}, evs[:0])
+	}
+	sim.Step(&s, b, 0, []sim.Command{sim.BuyRack(1, 1), sim.BuyGrid(5), sim.BuyPPA(2), sim.SetCloud(true)}, nil)
 	return s
 }
 
@@ -136,13 +142,13 @@ func TestMigrateV1Example(t *testing.T) {
 	if !s.Upgrades.Has(si) || s.Upgrades.Count() != 3 {
 		t.Fatalf("upgrades: %v", s.Upgrades)
 	}
-	if s.Infra.Racks[0] != 14 || s.Infra.Racks[1] != 6 || s.Infra.GPUGen != 2 {
+	if s.Infra.Racks[0] != 14 || s.Infra.Racks[1] != 6 || s.Infra.GPUGen != 4 || !s.Infra.StarterGiven {
 		t.Fatalf("racks: %+v", s.Infra)
 	}
 	if !s.IsUnlocked(sim.UnlockMarket) || !s.IsUnlocked(sim.UnlockTraining) || s.IsUnlocked(sim.UnlockContracts) {
 		t.Fatal("unlocks not rebuilt from lifetime revenue")
 	}
-	if s.Talent[1].Trait != "perfectionist" || s.Prestige.Params != 412 || s.Cards["dropout"] != 3 {
+	if s.Talent[1].Trait != "perfectionist" || s.Prestige.Params != 412 || s.Cards["dropout"] != 3 || s.Prestige.RunStartS != s.Clock {
 		t.Fatalf("misc: %+v %+v", s.Talent, s.Prestige)
 	}
 	if len(s.Rules) != 1 || !s.Rules[0].Enabled || len(s.Training.Queue[0].Arch) != 1 {
@@ -215,5 +221,26 @@ func TestRotationKeepsPreviousAsBackup(t *testing.T) {
 	prev, _, err := Unmarshal(data, b)
 	if err != nil || prev.Money != 1 {
 		t.Fatalf("backup .1: %v %v", err, prev)
+	}
+}
+
+func TestMigrateV2(t *testing.T) {
+	b := balance.Default()
+	v2 := `{"version":2,"saved_at":"2026-10-30T10:00:00Z","seed":7,"clock_s":5000,"money":10,
+"lifetime":{"run":2e7,"total":2e7,"layer2_total":2e7},
+"businesses":[{"id":"api_wrapper","owned":40,"manager":true}],
+"upgrades":[],"unlocks":[],
+"infra":{"gpu_gen":0,"racks":[0,0,0,0,0,0,0,0],"energy":{"grid_mw":0,"ppa":{"mw":0,"index":0,"expires_s":0},"smr":0,"orbital":0},"cloud_enabled":false,"starter_given":false},
+"prestige":{"params":0,"params_lifetime":0,"capital":0,"version_index":0,"round_index":0,"resets_l1":0,"resets_l2":0}}`
+	s, _, err := Unmarshal([]byte(v2), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.IsUnlocked(sim.UnlockInfra) || s.Infra.StarterGiven || s.Prestige.RunStartS != 0 || s.Infra.GPUGen != 1 {
+		t.Fatalf("v2 migration: %+v %+v", s.Infra, s.Prestige)
+	}
+	sim.Step(s, b, 0.1, nil, nil)
+	if !s.Infra.StarterGiven || s.Infra.Racks[0] < 1 || s.Derived.Throttle != 1 {
+		t.Fatalf("M0 save with infra unlocked did not get a starter cluster: %+v", s.Infra)
 	}
 }

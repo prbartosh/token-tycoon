@@ -10,6 +10,16 @@ const (
 	CmdBoost
 	CmdPrimary
 	CmdUndo
+	CmdBuyRack
+	CmdSellRack
+	CmdBuyGrid
+	CmdBuyPPA
+	CmdBuySMR
+	CmdBuyOrbital
+	CmdSetCloud
+	CmdPrestige
+	CmdReact
+	CmdClaimGrant
 )
 
 const (
@@ -23,7 +33,11 @@ type Command struct {
 	Kind     CommandKind
 	Business int
 	Upgrade  int
+	Gen      int
 	Qty      int
+	MW       float64
+	On       bool
+	Text     string
 }
 
 func Buy(business, qty int) Command {
@@ -42,3 +56,20 @@ func Primary(business, qty int) Command {
 	return Command{Kind: CmdPrimary, Business: business, Qty: qty}
 }
 func UndoLast() Command { return Command{Kind: CmdUndo, Business: -1} }
+
+func BuyRack(gen, qty int) Command {
+	return Command{Kind: CmdBuyRack, Business: -1, Gen: gen, Qty: qty}
+}
+func SellRack(gen, qty int) Command {
+	return Command{Kind: CmdSellRack, Business: -1, Gen: gen, Qty: qty}
+}
+func BuyGrid(mw float64) Command { return Command{Kind: CmdBuyGrid, Business: -1, MW: mw} }
+func BuyPPA(mw float64) Command  { return Command{Kind: CmdBuyPPA, Business: -1, MW: mw} }
+func BuySMR() Command            { return Command{Kind: CmdBuySMR, Business: -1} }
+func BuyOrbital() Command        { return Command{Kind: CmdBuyOrbital, Business: -1} }
+func SetCloud(on bool) Command   { return Command{Kind: CmdSetCloud, Business: -1, On: on} }
+func PrestigeReset() Command     { return Command{Kind: CmdPrestige, Business: -1} }
+func React(key string) Command   { return Command{Kind: CmdReact, Business: -1, Text: key} }
+func ClaimGrant(date string) Command {
+	return Command{Kind: CmdClaimGrant, Business: -1, Text: date}
+}

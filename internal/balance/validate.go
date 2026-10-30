@@ -176,6 +176,9 @@ func (b *Balance) Validate() error {
 				v.add(p+".target", "unknown business id %q", t)
 			}
 		}
+		if u.ComputeMult != 0 && !(u.ComputeMult > 0 && u.ComputeMult <= 1) {
+			v.add(p+".compute_mult", "must be in (0, 1], got %v", u.ComputeMult)
+		}
 		switch u.Effect {
 		case EffectProfit:
 			if u.Value < 1 {
@@ -215,6 +218,10 @@ func (b *Balance) Validate() error {
 		v.positive(p+".compute", g.Compute)
 		v.positive(p+".mw", g.MW)
 		v.positive(p+".flops_per_rack", g.FlopsPerRack)
+		v.nonNeg(p+".unlock_lifetime", g.UnlockLifetime)
+		if i > 0 && g.UnlockLifetime < b.GPUGens[i-1].UnlockLifetime {
+			v.add(p+".unlock_lifetime", "generations must unlock in order")
+		}
 	}
 	if len(b.GPUGens) > MaxGPUGens {
 		v.add("gpu_gen", "at most %d generations supported", MaxGPUGens)
@@ -222,6 +229,18 @@ func (b *Balance) Validate() error {
 
 	en := b.Energy
 	v.nonNeg("energy.grid_cost_coef", en.GridCostCoef)
+	v.positive("energy.grid_mw_cost", en.GridMWCost)
+	v.positive("energy.ppa_mw_cost", en.PPAMWCost)
+	v.positive("energy.smr_cost_minutes", en.SMRCostMinutes)
+	v.positive("energy.smr_mw", en.SMRMW)
+	v.positive("energy.orbital_cost_minutes", en.OrbitalCostMinutes)
+	v.positive("energy.orbital_mw", en.OrbitalMW)
+	v.nonNeg("energy.orbital_compute_bonus", en.OrbitalComputeBonus)
+	if !(en.IndexMean > 0 && en.IndexMean <= 100) {
+		v.add("energy.index_mean", "must be in (0, 100]")
+	}
+	v.nonNeg("energy.index_daily_amplitude", en.IndexDailyAmplitude)
+	v.nonNeg("energy.index_noise", en.IndexNoise)
 	v.unit("energy.grid_peak_availability", en.GridPeakAvailability)
 	if len(en.GridPeakHours) != 2 || en.GridPeakHours[0] < 0 || en.GridPeakHours[1] > 24 || en.GridPeakHours[0] >= en.GridPeakHours[1] {
 		v.add("energy.grid_peak_hours", "must be [start, end] within 0..24")
@@ -362,17 +381,20 @@ func (b *Balance) Validate() error {
 		p := fmt.Sprintf("event[%d](%s)", i, ev.ID)
 		v.positive(p+".weight", ev.Weight)
 		switch ev.Effect {
-		case "profit", "card_chance", "rack_cost", "hype":
+		case EventProfit, EventCardChance, EventRackCost, EventHype:
 			v.positive(p+".duration_s", ev.DurationS)
-		case "profit_tiers":
+			v.positive(p+".value", ev.Value)
+		case EventProfitTiers:
 			v.positive(p+".duration_s", ev.DurationS)
 			for _, tier := range ev.Tiers {
 				if tier < 1 || tier > MaxBusinesses {
 					v.add(p+".tiers", "tier %d out of 1..%d", tier, MaxBusinesses)
 				}
 			}
-		case "reaction":
+		case EventReaction:
 			v.positive(p+".window_s", ev.WindowS)
+			v.nonNeg(p+".reward_minutes", ev.RewardMinutes)
+			v.nonNeg(p+".penalty_minutes", ev.PenaltyMinutes)
 			if ev.Key == "" {
 				v.add(p+".key", "reaction events need a key")
 			}
@@ -385,11 +407,20 @@ func (b *Balance) Validate() error {
 	cd := b.Cards
 	v.nonNeg("cards.unlock_lifetime", cd.UnlockLifetime)
 	v.unit("cards.drop_chance_per_cycle", cd.DropChancePerCycle)
-	rarities := []string{"common", "rare", "epic", "legendary"}
-	for _, r := range rarities {
-		if _, ok := cd.RarityWeights[r]; !ok {
-			v.add("cards.rarity_weights", "missing rarity %q", r)
+	v.positive("cards.level_bonus_mult", cd.LevelBonusMult)
+	if cd.MaxLevel < 1 {
+		v.add("cards.max_level", "must be >= 1")
+	}
+	for _, r := range Rarities {
+		if w, ok := cd.RarityWeights[r]; !ok || !(w >= 0) {
+			v.add("cards.rarity_weights", "missing or negative rarity %q", r)
 		}
+		if _, ok := cd.SetBonus[r]; !ok {
+			v.add("cards.set_bonus", "missing rarity %q", r)
+		}
+	}
+	if len(b.Card) > MaxCards {
+		v.add("card", "at most %d cards supported", MaxCards)
 	}
 	kids := make([]string, len(b.Card))
 	for i, cc := range b.Card {
@@ -398,10 +429,20 @@ func (b *Balance) Validate() error {
 		if _, ok := cd.RarityWeights[cc.Rarity]; !ok {
 			v.add(p+".rarity", "unknown rarity %q", cc.Rarity)
 		}
-		if cc.Effect == "profit_business" {
+		switch cc.Effect {
+		case CardProfitBusiness:
 			if _, ok := bizIDs[cc.Target]; !ok {
 				v.add(p+".target", "unknown business id %q", cc.Target)
 			}
+		case CardProfitAll, CardCycleAll, CardCritChance, CardCritMult, CardCardChance, CardReactionReward,
+			CardOffline, CardTrainingSpeed, CardRevealRatio:
+			v.positive(p+".value", cc.Value)
+		case CardComputeAll, CardCostAll, CardEnergyCost, CardRackCost:
+			if !(cc.Value < 0 && cc.Value > -1) {
+				v.add(p+".value", "%s must be in (-1, 0), got %v", cc.Effect, cc.Value)
+			}
+		default:
+			v.add(p+".effect", "unknown card effect %q", cc.Effect)
 		}
 	}
 	v.uniqueIDs("card", kids)

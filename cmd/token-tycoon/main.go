@@ -1,17 +1,25 @@
 // Command token-tycoon is a terminal idle tycoon about the AI industry.
-// At milestone M0 it ships the balance simulator; the UI arrives in M1.
+// Without --simulate it starts the game UI; with it, the balance simulator.
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"token-tycoon/internal/balance"
 	"token-tycoon/internal/i18n"
+	"token-tycoon/internal/save"
+	"token-tycoon/internal/sim"
 	"token-tycoon/internal/simulate"
+	"token-tycoon/internal/ui"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
@@ -28,8 +36,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	combo := fs.Float64("combo-rate", 0, cat.T("cli.flag.combo_rate"))
 	latency := fs.Float64("click-latency", 0.5, cat.T("cli.flag.click_latency"))
 	balPath := fs.String("balance", "", cat.T("cli.flag.balance"))
-	fs.String("lang", "", cat.T("cli.flag.lang"))
+	lang := fs.String("lang", "", cat.T("cli.flag.lang"))
 	ci := fs.Bool("ci", false, cat.T("cli.flag.ci"))
+	noColor := fs.Bool("no-color", false, cat.T("cli.flag.no_color"))
+	debug := fs.Bool("debug", false, cat.T("cli.flag.debug"))
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, cat.T("cli.usage"))
 		fs.PrintDefaults()
@@ -55,8 +65,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if *simDur == "" {
-		fmt.Fprintln(stdout, cat.T("cli.ui_in_m1"))
-		return 0
+		return play(b, playOpts{lang: *lang, noColor: *noColor, debug: *debug}, stdout, stderr)
 	}
 	d, err := simulate.ParseDuration(*simDur)
 	if err != nil {
@@ -123,4 +132,91 @@ func langArg(args []string) string {
 		}
 	}
 	return ""
+}
+
+type playOpts struct {
+	lang    string
+	noColor bool
+	debug   bool
+}
+
+var runProgram = func(m *ui.Model, opts ...tea.ProgramOption) (*ui.Model, error) {
+	final, err := tea.NewProgram(m, opts...).Run()
+	if fm, ok := final.(*ui.Model); ok {
+		m = fm
+	}
+	return m, err
+}
+
+var now = time.Now
+
+func play(b *balance.Balance, o playOpts, stdout, stderr io.Writer) int {
+	cat := i18n.New(i18n.Detect(o.lang, ""))
+	path, err := save.DefaultPath()
+	if err != nil {
+		fmt.Fprintln(stderr, cat.T("cli.error", err))
+		return 1
+	}
+	st, elapsed, notice, err := loadGame(path, b)
+	if err != nil {
+		fmt.Fprintln(stderr, cat.T("cli.error", err))
+		return 1
+	}
+	if l, ok := i18n.Parse(o.lang); ok {
+		st.Settings.Lang = l.String()
+	}
+	cat = i18n.New(i18n.Detect(o.lang, st.Settings.Lang))
+	noticeText := ""
+	if notice.key != "" {
+		noticeText = cat.T(notice.key, notice.arg)
+	}
+	opts := save.Options{Backups: b.Engine.Backups, Indent: o.debug}
+	write := func(s *sim.State) error { return save.Save(path, s, b, now(), opts) }
+	profile := colorprofile.Detect(stdout, os.Environ())
+	if o.noColor {
+		profile = colorprofile.ASCII
+	}
+	m := ui.New(ui.Config{
+		Balance: b, State: st, Catalog: cat, Profile: profile, Debug: o.debug,
+		Save: write, OfflineElapsed: elapsed, Notice: noticeText, Now: now,
+	})
+	popts := []tea.ProgramOption{tea.WithOutput(stdout), tea.WithFPS(b.Engine.FPSAnimation)}
+	if o.noColor {
+		popts = append(popts, tea.WithColorProfile(colorprofile.ASCII))
+	}
+	final, runErr := runProgram(m, popts...)
+	code := 0
+	if runErr != nil && !errors.Is(runErr, tea.ErrInterrupted) {
+		fmt.Fprintln(stderr, cat.T("cli.error", runErr))
+		code = 1
+	}
+	if err := write(final.State()); err != nil {
+		fmt.Fprintln(stderr, cat.T("ui.msg.save_failed", err))
+		return 1
+	}
+	return code
+}
+
+type notice struct{ key, arg string }
+
+func loadGame(path string, b *balance.Balance) (*sim.State, float64, notice, error) {
+	l, err := save.Load(path, b, b.Engine.Backups)
+	switch {
+	case err == nil:
+		var n notice
+		if l.Recovered() {
+			n = notice{"msg.save_recovered", l.Source}
+		}
+		return l.State, max(0, now().Sub(l.SavedAt).Seconds()), n, nil
+	case errors.Is(err, save.ErrNewerVersion):
+		return nil, 0, notice{}, err
+	case errors.Is(err, save.ErrNoSave):
+		s := sim.NewState(b, uint64(now().UnixNano()))
+		return &s, 0, notice{}, nil
+	}
+	if rerr := os.Rename(path, path+".corrupt"); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
+		return nil, 0, notice{}, rerr
+	}
+	s := sim.NewState(b, uint64(now().UnixNano()))
+	return &s, 0, notice{"ui.msg.save_corrupt", path + ".corrupt"}, nil
 }

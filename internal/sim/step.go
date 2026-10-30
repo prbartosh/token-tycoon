@@ -37,11 +37,25 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 		}
 	}
 
+	var frac float64
+	out, frac = tickEvents(s, b, dt, out, md)
+	if s.Infra.Energy.PPA.MW > 0 && s.Infra.Energy.PPA.ExpiresS <= s.Clock {
+		out = append(out, Event{Kind: EvPPAExpired, Business: -1, Value: s.Infra.Energy.PPA.MW})
+		s.Infra.Energy.PPA = PPA{}
+		Recompute(s, b)
+	}
+
 	d := &s.Derived
 	combo := max(1, s.Combo.Mult)
-	critP, critM := b.Crit.Chance, b.Crit.Mult
+	critP, critM := d.CritChance, d.CritMult
+	critEV := d.CritEV
+	cardP := 0.0
+	if s.IsUnlocked(UnlockCards) {
+		cardP = d.CardChance
+	}
 	capPerS := b.BusinessDefaults.DrawCapPerS
 	earned := 0.0
+
 	for i := range N {
 		bz := &s.Businesses[i]
 		if bz.Owned == 0 || !(bz.Manager || bz.Running) {
@@ -66,7 +80,10 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 			bz.DrawBudget -= rolled
 		}
 		per := d.PerCycle[i] * combo * md.efficiency
-		rev := per * (n - rolled) * econ.CritEV(critP, critM)
+		if frac < 1 && d.EventMult[i] != 1 {
+			per *= (1 + (d.EventMult[i]-1)*frac) / d.EventMult[i]
+		}
+		rev := per * (n - rolled) * critEV
 		if rolled > 0 {
 			crits := 0
 			for range int(rolled) {
@@ -82,13 +99,17 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 				out = append(out, Event{Kind: EvCrit, Business: i, Count: crits, Amount: per*float64(crits) + bonus})
 			}
 			out = append(out, Event{Kind: EvCycle, Business: i, Count: int(rolled), Amount: per * rolled})
+			if cardP > 0 {
+				for range int(rolled) {
+					if s.RNG.Cards.Chance(cardP) {
+						out = dropCard(s, b, out)
+					}
+				}
+			}
 		}
 		earned += rev
 	}
-	s.Money += earned
-	s.Lifetime.Run += earned
-	s.Lifetime.Total += earned
-	s.Lifetime.Layer2Total += earned
+	earn(s, earned)
 	s.Clock += dt
 	if md.offline {
 		s.Stats.OfflineS += dt
@@ -96,8 +117,19 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 		s.Stats.PlayS += dt
 	}
 	checkUnlocks(s, b, &out)
+	out = updateGens(s, b, out)
+	if s.IsUnlocked(UnlockInfra) && !s.Infra.StarterGiven {
+		out = grantStarter(s, b, out)
+	}
 	Recompute(s, b)
 	return out
+}
+
+func earn(s *State, x float64) {
+	s.Money += x
+	s.Lifetime.Run += x
+	s.Lifetime.Total += x
+	s.Lifetime.Layer2Total += x
 }
 
 func reject(out []Event, c *Command, r Reject, amount float64) []Event {
@@ -140,6 +172,20 @@ func apply(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 		return buyBusiness(s, b, c, out)
 	case CmdUndo:
 		return undo(s, b, c, out)
+	case CmdBuyRack:
+		return buyRack(s, b, c, out)
+	case CmdSellRack:
+		return sellRack(s, b, c, out)
+	case CmdBuyGrid, CmdBuyPPA, CmdBuySMR, CmdBuyOrbital:
+		return buyEnergy(s, b, c, out)
+	case CmdSetCloud:
+		return setCloud(s, b, c, out)
+	case CmdPrestige:
+		return prestige(s, b, c, out)
+	case CmdReact:
+		return react(s, b, c, out)
+	case CmdClaimGrant:
+		return claimGrant(s, b, c, out)
 	}
 	return reject(out, c, RejectInvalid, 0)
 }
@@ -182,10 +228,11 @@ func buyBusiness(s *State, b *balance.Balance, c *Command, out []Event) []Event 
 		return reject(out, c, RejectCannotAfford, cost-s.Money)
 	}
 	before := s.Derived
+	prev := s.GlobalMilestones
 	s.Money -= cost
 	s.Businesses[i].Owned += k
 	s.Stats.Purchases++
-	s.Undo = Undo{Kind: PurchaseBusiness, Business: i, Qty: k, Cost: cost, AtS: s.Clock}
+	s.Undo = Undo{Kind: PurchaseBusiness, Business: i, Qty: k, Cost: cost, AtS: s.Clock, PrevGlobal: prev}
 	Recompute(s, b)
 	out = append(out, Event{Kind: EvPurchase, Business: i, Count: k, Amount: cost})
 	return milestoneEvents(s, b, &before, i, out)
@@ -234,7 +281,7 @@ func buyManager(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 	bz.Manager = true
 	bz.Running = false
 	s.Stats.Purchases++
-	s.Undo = Undo{Kind: PurchaseManager, Business: i, Cost: cost, AtS: s.Clock}
+	s.Undo = Undo{Kind: PurchaseManager, Business: i, Cost: cost, AtS: s.Clock, PrevGlobal: s.GlobalMilestones}
 	Recompute(s, b)
 	return append(out, Event{Kind: EvManager, Business: i, Amount: cost})
 }
@@ -254,7 +301,7 @@ func buyUpgrade(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 	s.Money -= cost
 	s.Upgrades.Set(u)
 	s.Stats.Purchases++
-	s.Undo = Undo{Kind: PurchaseUpgrade, Business: -1, Upgrade: u, Cost: cost, AtS: s.Clock}
+	s.Undo = Undo{Kind: PurchaseUpgrade, Business: -1, Upgrade: u, Cost: cost, AtS: s.Clock, PrevGlobal: s.GlobalMilestones}
 	Recompute(s, b)
 	return append(out, Event{Kind: EvUpgrade, Business: -1, Index: u, Amount: cost})
 }
@@ -276,10 +323,19 @@ func undo(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 		s.Businesses[u.Business].Manager = false
 	case PurchaseUpgrade:
 		s.Upgrades.Clear(u.Upgrade)
+	case PurchaseRack:
+		s.Infra.Racks[u.Gen-1] = max(0, s.Infra.Racks[u.Gen-1]-u.Qty)
+	case PurchaseGrid:
+		s.Infra.Energy.GridMW = math.Max(0, s.Infra.Energy.GridMW-u.MW)
 	}
+	s.GlobalMilestones = u.PrevGlobal
 	s.Money += u.Cost
 	s.Stats.Purchases--
 	s.Undo = Undo{}
 	Recompute(s, b)
-	return append(out, Event{Kind: EvUndo, Business: u.Business, Index: u.Upgrade, Count: u.Qty, Amount: u.Cost})
+	idx := u.Upgrade
+	if u.Kind == PurchaseRack {
+		idx = u.Gen
+	}
+	return append(out, Event{Kind: EvUndo, Business: u.Business, Index: idx, Count: u.Qty, Amount: u.Cost, Value: u.MW, Purchase: u.Kind})
 }

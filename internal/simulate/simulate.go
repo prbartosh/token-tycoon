@@ -2,7 +2,8 @@
 // curve (ARCHITECTURE 9): greedy, passive (short daily sessions + offline)
 // and random strategies, CSV export and an acceptance report. Bots buy
 // businesses and infrastructure, prestige by the preview, react to events with
-// a human-like probability and delay, and claim the daily grant.
+// a human-like probability and delay, claim the daily grant, set market
+// segments, buy data and train models.
 package simulate
 
 import (
@@ -87,6 +88,14 @@ type PrestigeAt struct {
 	ReturnS float64
 }
 
+type ModelAt struct {
+	T         float64
+	Benchmark float64
+	Params    float64
+	Tokens    float64
+	Rank      int
+}
+
 type Session struct {
 	StartT       float64
 	FirstUnlockT float64
@@ -118,6 +127,11 @@ type Result struct {
 	ThrottleS     float64
 	ThrottledS    float64
 	CloudS        float64
+	MarketT       float64
+	TrainingT     float64
+	Models        []ModelAt
+	TrainS        float64
+	TrainShareS   float64
 }
 
 var grantEpoch = time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
@@ -143,6 +157,8 @@ type bot struct {
 	flatHorizon float64
 	reacts      []pendingReact
 	grantDay    int
+	nextMkt     float64
+	nextTrain   float64
 }
 
 func Run(b *balance.Balance, cfg Config) (*Result, error) {
@@ -159,7 +175,7 @@ func Run(b *balance.Balance, cfg Config) (*Result, error) {
 		cfg:      cfg,
 		b:        b,
 		s:        sim.NewState(b, cfg.Seed),
-		res:      &Result{Config: cfg, FirstManagerT: -1, InfraT: -1, PrestigeT: -1},
+		res:      &Result{Config: cfg, FirstManagerT: -1, InfraT: -1, PrestigeT: -1, MarketT: -1, TrainingT: -1},
 		evs:      make([]sim.Event, 0, 256),
 		cmds:     make([]sim.Command, 0, 16),
 		rnd:      rand.New(rand.NewPCG(cfg.Seed, 0xB07)),
@@ -238,6 +254,10 @@ func (bt *bot) track(dt float64) {
 	if bt.s.Infra.CloudEnabled {
 		bt.res.CloudS += dt
 	}
+	if len(bt.s.Training.Queue) > 0 {
+		bt.res.TrainS += dt
+		bt.res.TrainShareS += d.Train.TrainShare * dt
+	}
 }
 
 func (bt *bot) reactProfile() (p, lo, hi float64) {
@@ -306,6 +326,19 @@ func (bt *bot) observe(evs []sim.Event, t float64) {
 				bt.res.InfraT = t
 			case sim.UnlockPrestige1:
 				bt.res.PrestigeT = t
+			case sim.UnlockMarket:
+				bt.res.MarketT = t
+			case sim.UnlockTraining:
+				bt.res.TrainingT = t
+			}
+		case sim.EvTrainQueued:
+			bt.res.Models = append(bt.res.Models, ModelAt{T: -1, Params: e.Value, Tokens: e.Amount})
+		case sim.EvModelRelease:
+			for i := range bt.res.Models {
+				if bt.res.Models[i].T < 0 {
+					bt.res.Models[i].T, bt.res.Models[i].Benchmark, bt.res.Models[i].Rank = t, e.Value, e.Count
+					break
+				}
 			}
 		case sim.EvManager:
 			if bt.res.FirstManagerT < 0 {
@@ -347,6 +380,9 @@ func (bt *bot) sample(force bool) {
 		Unlocks: s.Unlocks.Count(), Upgrades: s.Upgrades.Count(), Combo: s.Combo.Mult,
 		Online:   bt.session != nil || bt.cfg.Strategy != Passive,
 		Throttle: s.Derived.Throttle, Cards: s.CardMods.Unique, Prestiges: s.Prestige.ResetsL1,
+	}
+	if mv := &s.Derived.Market; mv.On {
+		sm.Benchmark, sm.Share = mv.Benchmark, mv.Share
 	}
 	for i := range sim.N {
 		sm.Owned[i] = s.Businesses[i].Owned

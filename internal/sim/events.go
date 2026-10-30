@@ -32,6 +32,18 @@ const (
 	EvReact
 	EvReactMiss
 	EvGrant
+	EvRivalRelease
+	EvSegments
+	EvAssign
+	EvModelRetired
+	EvModelRelease
+	EvTrainQueued
+	EvTrainCancel
+	EvTrainShare
+	EvSynthetic
+	EvScraper
+	EvLicense
+	EvScraperIncident
 )
 
 type Reject uint8
@@ -48,6 +60,10 @@ const (
 	RejectNoEvent
 	RejectAlreadyClaimed
 	RejectBadDate
+	RejectNoData
+	RejectQueueFull
+	RejectTooLarge
+	RejectNeedBenchmark
 )
 
 const (

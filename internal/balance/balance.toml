@@ -338,13 +338,18 @@ quality_clamp = [0.5, 2.0]
 quality_divisor = 50
 deflation_per_day = 0.95
 hype_half_life_h = 6
+rival_span_days = 28           # rival benchmarks move from start_benchmark (day 1) to end_benchmark (this day)
+base_benchmark = 12            # floor for the product before the first trained model; the wrapper follows the rival median
+release_hype = 0.5             # hype added by a model release, times its quality premium
+pressure_floor = 0.5           # lowest combined price pressure from open-weights releases
 
 [market.segments]
 free_price = 0.0
-free_hype_per_share = 0.5
+free_hype_per_share = 0.5     # hype gained per hour at 100% Free allocation and 100% market share
 pro_price = 1.0
 enterprise_price = 3.0
 enterprise_min_benchmark = 70
+enterprise_max_alloc = 0.3     # Enterprise buyers absorb at most this share of the token volume
 
 [[rival]]
 id = "northwind"
@@ -368,7 +373,7 @@ price_pressure = 0.95          # every release lowers the market price
 id = "dragonfly"
 style = "jumpy"
 release_every_days = 3.5
-release_jitter_days = 2.5      # random +-
+release_jitter_days = 1.7      # random +-, below half the interval so releases stay in order
 start_benchmark = 6
 end_benchmark = 93
 price_pressure = 1.0
@@ -412,9 +417,15 @@ benchmark_k = 0.55
 flops_per_param_token = 6
 cluster_rack_exponent = 0.5
 max_models = 3
+max_queue = 3
+min_params = 1e6
 max_params_levels = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14]
+# lifetime revenue that opens each max_params level until the Scale research branch lands (M4)
+max_params_unlock = [1e17, 1e19, 1e22, 1e26, 1e30, 1e35, 1e40]
 synthetic_min_benchmark = 60
 synthetic_penalty_above = 0.5
+synthetic_penalty = 0.5        # excess loss x (1 + penalty) at 100% synthetic data, linear from penalty_above
+synthetic_flops_per_param = 2  # generating one synthetic token costs 2 x N FLOPs of the best model
 
 [training.architecture]        # excess-loss multipliers (< 1 = better)
 moe = 0.85
@@ -422,12 +433,20 @@ rlhf = 0.9
 reasoning = 0.8
 tokenizer_v2 = 0.95
 
+[training.architecture_card]   # card that grants each architecture bonus
+moe = "moe_paper"
+rlhf = "rlhf"
+reasoning = "chain_of_thought"
+tokenizer_v2 = "bpe"
+
 [data]
 unlock_lifetime = 1e17         # with training (day 3)
 scraper_cost = 1e6
 scraper_r = 1.15
 scraper_tokens_per_s = 1e6
-scraper_incident_chance_per_h = 0.02
+scraper_incident_chance_per_h = 0.02   # per scraper; online only
+scraper_incident_pause_s = 60
+scraper_incident_fine_minutes = 1
 license_cost_minutes = 30
 license_tokens = [1e9, 1e10, 1e11, 1e12, 1e13]   # grows with research level
 

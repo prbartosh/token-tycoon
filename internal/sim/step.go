@@ -110,6 +110,9 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 		earned += rev
 	}
 	earn(s, earned)
+	out = tickData(s, b, dt, out, md)
+	out = tickTraining(s, b, dt, out)
+	out = tickMarket(s, b, s.Clock, dt, out)
 	s.Clock += dt
 	if md.offline {
 		s.Stats.OfflineS += dt
@@ -186,6 +189,24 @@ func apply(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 		return react(s, b, c, out)
 	case CmdClaimGrant:
 		return claimGrant(s, b, c, out)
+	case CmdTrain:
+		return train(s, b, c, out)
+	case CmdCancelTrain:
+		return cancelTrain(s, b, c, out)
+	case CmdSetTrainShare:
+		return setTrainShare(s, b, c, out)
+	case CmdSetSynthetic:
+		return setSynthetic(s, b, c, out)
+	case CmdBuyScraper:
+		return buyScraper(s, b, c, out)
+	case CmdBuyLicense:
+		return buyLicense(s, b, c, out)
+	case CmdSetSegments:
+		return setSegments(s, b, c, out)
+	case CmdAssignModel:
+		return assignModel(s, b, c, out)
+	case CmdRetireModel:
+		return retireModel(s, b, c, out)
 	}
 	return reject(out, c, RejectInvalid, 0)
 }

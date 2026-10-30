@@ -217,6 +217,8 @@ func (bt *bot) decide() {
 		return
 	}
 	bt.maintainInfra()
+	bt.maintainMarket()
+	bt.maintainTraining()
 	var buf [128]candidate
 	for range 50 {
 		cands, rate := bt.candidates(buf[:0])

@@ -12,6 +12,7 @@ import (
 var migrations = map[int]func(raw map[string]any) error{
 	1: migrate1to2,
 	2: migrate2to3,
+	3: migrate3to4,
 }
 
 func migrate(raw map[string]any) error {
@@ -166,6 +167,39 @@ func migrate2to3(raw map[string]any) error {
 	if resets > 0 {
 		if c, ok := raw["clock_s"]; ok {
 			p["run_start_s"] = c
+		}
+	}
+	return nil
+}
+
+func migrate3to4(raw map[string]any) error {
+	if m, ok := raw["market"].(map[string]any); ok {
+		delete(m, "price_pressure")
+		if _, ok := m["opened_s"]; !ok {
+			m["opened_s"] = 0
+			if u, _ := raw["unlocks"].([]any); u != nil {
+				for _, x := range u {
+					if x == "market" {
+						if c, ok := raw["clock_s"]; ok {
+							m["opened_s"] = c
+						}
+					}
+				}
+			}
+		}
+	}
+	t, _ := raw["training"].(map[string]any)
+	if t == nil {
+		return nil
+	}
+	q, _ := t["queue"].([]any)
+	for i, x := range q {
+		j, ok := x.(map[string]any)
+		if !ok {
+			return fmt.Errorf("training.queue[%d]: not an object", i)
+		}
+		if _, ok := j["arch_mult"]; !ok {
+			j["arch_mult"] = 1
 		}
 	}
 	return nil

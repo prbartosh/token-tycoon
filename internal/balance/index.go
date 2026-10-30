@@ -1,5 +1,10 @@
 package balance
 
+import (
+	"maps"
+	"slices"
+)
+
 const MaxGPUGens = 8
 
 type TargetMask uint16
@@ -18,6 +23,7 @@ type index struct {
 	cardTarget  []int
 	byRarity    [len(Rarities)][]int
 	event       map[string]int
+	arch        []Arch
 }
 
 func (b *Balance) buildIndex() {
@@ -59,7 +65,17 @@ func (b *Balance) buildIndex() {
 	for i, e := range b.Event {
 		b.idx.event[e.ID] = i
 	}
+	b.idx.arch = b.idx.arch[:0]
+	for _, id := range slices.Sorted(maps.Keys(b.Training.Architecture)) {
+		card := -1
+		if c, ok := b.idx.card[b.Training.ArchitectureCard[id]]; ok {
+			card = c
+		}
+		b.idx.arch = append(b.idx.arch, Arch{ID: id, Mult: b.Training.Architecture[id], Card: card})
+	}
 }
+
+func (b *Balance) Archs() []Arch { return b.idx.arch }
 
 func RarityIndex(r string) int {
 	for i, x := range Rarities {

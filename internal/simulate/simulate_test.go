@@ -106,3 +106,27 @@ func TestGreedyUsesM2Systems(t *testing.T) {
 		t.Fatal(out.String())
 	}
 }
+
+func TestGreedyUsesM3Systems(t *testing.T) {
+	b := balance.Default()
+	r, err := Run(b, Config{Duration: 6 * 3600, Strategy: Greedy, Seed: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &r.Final
+	if r.MarketT < 0 || r.TrainingT < 0 || s.Stats.Models == 0 || len(r.Models) == 0 || r.Models[0].T < 0 {
+		t.Fatalf("market %v training %v models %d", r.MarketT, r.TrainingT, s.Stats.Models)
+	}
+	if s.Training.Scrapers == 0 || r.TrainS == 0 || !(s.Derived.Market.Benchmark > b.Market.BaseBenchmark) {
+		t.Fatalf("scrapers %d train %v bench %v", s.Training.Scrapers, r.TrainS, s.Derived.Market.Benchmark)
+	}
+	last := r.Samples[len(r.Samples)-1]
+	if !(last.Benchmark > 0) || !(last.Share > 0) {
+		t.Fatalf("samples miss market data: %+v", last)
+	}
+	var out bytes.Buffer
+	Report(&out, r, b, i18n.New(i18n.EN))
+	if strings.Contains(out.String(), "!report") || !strings.Contains(out.String(), "TT-") {
+		t.Fatal(out.String())
+	}
+}

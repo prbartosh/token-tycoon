@@ -112,6 +112,9 @@ func checkUnlocks(s *State, b *balance.Balance, out *[]Event) {
 			continue
 		}
 		s.Unlocks.Set(int(u))
+		if u == UnlockMarket {
+			s.Market.OpenedS = s.Clock
+		}
 		if out != nil {
 			*out = append(*out, Event{Kind: EvUnlock, Business: -1, Index: int(u)})
 		}

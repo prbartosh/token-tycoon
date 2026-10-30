@@ -157,6 +157,27 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 			p("%s\n", c.T("report.infra_avg", pct(r.ThrottleS/r.InfraS), format.Duration(r.ThrottledS), format.Duration(r.CloudS)))
 		}
 	}
+	if mv := &s.Derived.Market; mv.On {
+		al := mv.Alloc
+		p("%s\n", c.T("report.market", format.Number(s.Derived.Price, n), pct(mv.Share), mv.Rank,
+			format.Number(mv.Hype, n), pct(al[0]), pct(al[1]), pct(al[2])))
+		var rv []string
+		for i := range mv.Rivals {
+			rv = append(rv, fmt.Sprintf("%s %s", c.T("rival."+b.Rivals[i].ID), format.Number(mv.RivalBench[i], n)))
+		}
+		p("%s\n", c.T("report.rivals", strings.Join(rv, ", ")))
+	}
+	if s.IsUnlocked(sim.UnlockData) {
+		tr := &s.Training
+		p("%s\n", c.T("report.models", s.Stats.Models, format.Number(s.Stats.BestBench, n), format.Number(tr.DataTokens, n),
+			format.Number(tr.SynthTokens, n), tr.Scrapers, tr.Licenses, s.Stats.Incidents))
+		for _, md := range tr.Models {
+			p("  %s\n", c.T("report.model_line", md.Name, format.Number(md.Params, n), format.Number(md.Tokens, n), format.Number(md.Benchmark, n)))
+		}
+		if r.TrainS > 0 {
+			p("%s\n", c.T("report.training_time", format.Duration(r.TrainS), pct(r.TrainShareS/r.TrainS)))
+		}
+	}
 	p("%s\n\n", c.T("report.grants", s.Stats.Grants, s.Streak.Day))
 
 	p("%s\n", c.T("report.timeline"))
@@ -175,6 +196,16 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 		first = r.Prestiges[0].T
 	}
 	tl(c.T("report.first_reset"), first)
+	tl(c.T("report.market_unlock"), r.MarketT)
+	tl(c.T("report.training_unlock"), r.TrainingT)
+	firstModel := -1.0
+	for _, md := range r.Models {
+		if md.T >= 0 {
+			firstModel = md.T
+			break
+		}
+	}
+	tl(c.T("report.first_model"), firstModel)
 	p("\n%s\n", c.T("report.unlocks"))
 	for _, u := range r.Unlocks {
 		p("  %-10s %s\n", format.Duration(u.T), unlockName(u.Unlock, b, c))

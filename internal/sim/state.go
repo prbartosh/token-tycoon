@@ -64,6 +64,8 @@ type State struct {
 	Combo    Combo      `json:"-"`
 	Undo     Undo       `json:"-"`
 	Derived  Derived    `json:"-"`
+
+	rivals rivalCache
 }
 
 type Lifetime struct {
@@ -107,7 +109,7 @@ type Market struct {
 	Segments        Segments `json:"segments"`
 	Hype            float64  `json:"hype"`
 	Reputation      float64  `json:"reputation"`
-	PricePressure   float64  `json:"price_pressure"`
+	OpenedS         float64  `json:"opened_s"`
 }
 
 type Segments struct {
@@ -117,9 +119,15 @@ type Segments struct {
 }
 
 type Training struct {
-	Models     []Model    `json:"models"`
-	Queue      []TrainJob `json:"queue"`
-	DataTokens float64    `json:"data_tokens"`
+	Models        []Model    `json:"models"`
+	Queue         []TrainJob `json:"queue"`
+	DataTokens    float64    `json:"data_tokens"`
+	SynthTokens   float64    `json:"synthetic_tokens"`
+	SynthShare    float64    `json:"synthetic_share"`
+	Scrapers      int        `json:"scrapers"`
+	Licenses      int        `json:"licenses"`
+	Released      int        `json:"released"`
+	ScraperPauseS float64    `json:"scraper_pause_until_s"`
 }
 
 type Model struct {
@@ -129,6 +137,7 @@ type Model struct {
 	Benchmark float64 `json:"benchmark"`
 	ReleasedS float64 `json:"released_s"`
 	Segment   string  `json:"segment"`
+	Synthetic float64 `json:"synthetic"`
 }
 
 type TrainJob struct {
@@ -137,6 +146,8 @@ type TrainJob struct {
 	ClusterShare float64  `json:"cluster_share"`
 	Progress     float64  `json:"progress"`
 	Arch         []string `json:"arch"`
+	ArchMult     float64  `json:"arch_mult"`
+	Synthetic    float64  `json:"synthetic"`
 }
 
 type Researcher struct {
@@ -209,6 +220,9 @@ type Stats struct {
 	CardsDropped int     `json:"cards_dropped"`
 	Grants       int     `json:"grants"`
 	BestIncome   float64 `json:"best_income"`
+	Models       int     `json:"models"`
+	BestBench    float64 `json:"best_benchmark"`
+	Incidents    int     `json:"scraper_incidents"`
 }
 
 type Combo struct {
@@ -246,7 +260,7 @@ func NewState(b *balance.Balance, seed uint64) State {
 		Money:    b.Start.Money,
 		Cards:    map[string]int{},
 		Settings: Settings{Notation: "letters", Advisor: b.UI.AdvisorDefault},
-		Market:   Market{Segments: Segments{Pro: 1}, PricePressure: 1, UnlockedRegions: []string{}},
+		Market:   Market{Segments: Segments{Pro: 1}, UnlockedRegions: []string{}},
 		Combo:    Combo{Mult: 1},
 	}
 	resetBusinesses(&s, b)
@@ -270,9 +284,8 @@ func Normalize(s *State, b *balance.Balance) {
 	if s.Cards == nil {
 		s.Cards = map[string]int{}
 	}
-	if s.Market.PricePressure == 0 {
-		s.Market.PricePressure = 1
-	}
+	normalizeMarket(s, b)
+	normalizeTraining(s, b)
 	for i := range s.Businesses {
 		s.Businesses[i].ID = b.Businesses[i].ID
 		if s.Businesses[i].Owned < 0 {

@@ -161,6 +161,10 @@ type Market struct {
 	QualityDivisor        float64   `toml:"quality_divisor"`
 	DeflationPerDay       float64   `toml:"deflation_per_day"`
 	HypeHalfLifeH         float64   `toml:"hype_half_life_h"`
+	RivalSpanDays         float64   `toml:"rival_span_days"`
+	BaseBenchmark         float64   `toml:"base_benchmark"`
+	ReleaseHype           float64   `toml:"release_hype"`
+	PressureFloor         float64   `toml:"pressure_floor"`
 	Segments              Segments  `toml:"segments"`
 }
 
@@ -170,7 +174,10 @@ type Segments struct {
 	ProPrice               float64 `toml:"pro_price"`
 	EnterprisePrice        float64 `toml:"enterprise_price"`
 	EnterpriseMinBenchmark float64 `toml:"enterprise_min_benchmark"`
+	EnterpriseMaxAlloc     float64 `toml:"enterprise_max_alloc"`
 }
+
+const MaxRivals = 8
 
 type Rival struct {
 	ID                string  `toml:"id"`
@@ -190,20 +197,32 @@ type Region struct {
 }
 
 type Training struct {
-	UnlockLifetime        float64            `toml:"unlock_lifetime"`
-	LossE                 float64            `toml:"loss_E"`
-	LossA                 float64            `toml:"loss_A"`
-	LossB                 float64            `toml:"loss_B"`
-	Alpha                 float64            `toml:"alpha"`
-	Beta                  float64            `toml:"beta"`
-	BenchmarkK            float64            `toml:"benchmark_k"`
-	FlopsPerParamToken    float64            `toml:"flops_per_param_token"`
-	ClusterRackExponent   float64            `toml:"cluster_rack_exponent"`
-	MaxModels             int                `toml:"max_models"`
-	MaxParamsLevels       []float64          `toml:"max_params_levels"`
-	SyntheticMinBenchmark float64            `toml:"synthetic_min_benchmark"`
-	SyntheticPenaltyAbove float64            `toml:"synthetic_penalty_above"`
-	Architecture          map[string]float64 `toml:"architecture"`
+	UnlockLifetime         float64            `toml:"unlock_lifetime"`
+	LossE                  float64            `toml:"loss_E"`
+	LossA                  float64            `toml:"loss_A"`
+	LossB                  float64            `toml:"loss_B"`
+	Alpha                  float64            `toml:"alpha"`
+	Beta                   float64            `toml:"beta"`
+	BenchmarkK             float64            `toml:"benchmark_k"`
+	FlopsPerParamToken     float64            `toml:"flops_per_param_token"`
+	ClusterRackExponent    float64            `toml:"cluster_rack_exponent"`
+	MaxModels              int                `toml:"max_models"`
+	MaxQueue               int                `toml:"max_queue"`
+	MinParams              float64            `toml:"min_params"`
+	MaxParamsLevels        []float64          `toml:"max_params_levels"`
+	MaxParamsUnlock        []float64          `toml:"max_params_unlock"`
+	SyntheticMinBenchmark  float64            `toml:"synthetic_min_benchmark"`
+	SyntheticPenaltyAbove  float64            `toml:"synthetic_penalty_above"`
+	SyntheticPenalty       float64            `toml:"synthetic_penalty"`
+	SyntheticFlopsPerParam float64            `toml:"synthetic_flops_per_param"`
+	Architecture           map[string]float64 `toml:"architecture"`
+	ArchitectureCard       map[string]string  `toml:"architecture_card"`
+}
+
+type Arch struct {
+	ID   string
+	Mult float64
+	Card int
 }
 
 type Data struct {
@@ -212,6 +231,8 @@ type Data struct {
 	ScraperR                  float64   `toml:"scraper_r"`
 	ScraperTokensPerS         float64   `toml:"scraper_tokens_per_s"`
 	ScraperIncidentChancePerH float64   `toml:"scraper_incident_chance_per_h"`
+	ScraperIncidentPauseS     float64   `toml:"scraper_incident_pause_s"`
+	ScraperIncidentFineMin    float64   `toml:"scraper_incident_fine_minutes"`
 	LicenseCostMinutes        float64   `toml:"license_cost_minutes"`
 	LicenseTokens             []float64 `toml:"license_tokens"`
 }

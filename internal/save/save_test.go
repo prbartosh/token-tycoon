@@ -244,3 +244,51 @@ func TestMigrateV2(t *testing.T) {
 		t.Fatalf("M0 save with infra unlocked did not get a starter cluster: %+v", s.Infra)
 	}
 }
+
+func TestMigrateV3(t *testing.T) {
+	b := balance.Default()
+	v3 := `{"version":3,"saved_at":"2026-10-30T10:00:00Z","seed":7,"clock_s":9000,"money":10,
+"lifetime":{"run":2e13,"total":2e13,"layer2_total":2e13},
+"businesses":[{"id":"api_wrapper","owned":40,"manager":true}],
+"upgrades":[],"unlocks":["infra","market"],
+"market":{"unlocked_regions":[],"segments":{"free":0,"pro":1,"enterprise":0},"hype":0.5,"reputation":0,"price_pressure":1},
+"training":{"models":[],"queue":[{"params":1e8,"tokens":2e9,"cluster_share":0.5,"progress":0.1,"arch":[]}],"data_tokens":0},
+"prestige":{"params":0,"params_lifetime":0,"capital":0,"version_index":0,"round_index":0,"resets_l1":0,"resets_l2":0,"run_start_s":0}}`
+	s, _, err := Unmarshal([]byte(v3), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Market.OpenedS != 9000 || s.Market.Hype != 0.5 || s.Training.Queue[0].ArchMult != 1 {
+		t.Fatalf("v3 migration: %+v %+v", s.Market, s.Training.Queue)
+	}
+	if !s.Derived.Market.On || !(s.Derived.Price > 0) {
+		t.Fatal("market view after load")
+	}
+}
+
+func TestRoundTripM3(t *testing.T) {
+	b := balance.Default()
+	s := played(b)
+	s.Unlocks.Set(int(sim.UnlockMarket))
+	s.Market.OpenedS = s.Clock
+	s.Market.Segments = sim.Segments{Free: 0.2, Pro: 0.8}
+	s.Market.Hype = 0.7
+	s.Training = sim.Training{
+		Models:   []sim.Model{{Name: "TT-1", Params: 1e9, Tokens: 2e10, Benchmark: 61, ReleasedS: 10, Segment: "pro"}},
+		Queue:    []sim.TrainJob{{Params: 1e8, Tokens: 2e9, ClusterShare: 0.4, Progress: 0.3, Arch: []string{"moe"}, ArchMult: 0.85, Synthetic: 0.2}},
+		Scrapers: 3, Licenses: 2, Released: 1, DataTokens: 5e9, SynthTokens: 1e8, SynthShare: 0.1,
+	}
+	sim.Normalize(&s, b)
+	data, err := Marshal(&s, b, at, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := Unmarshal(data, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Undo, got.Undo = sim.Undo{}, sim.Undo{}
+	if !reflect.DeepEqual(s, *got) {
+		t.Fatalf("round trip mismatch\nwant %+v\ngot  %+v", s.Training, got.Training)
+	}
+}

@@ -48,6 +48,10 @@ type Derived struct {
 	EnergyShare  float64
 	NetMult      float64
 	RackCostMult float64
+	ComputeTotal float64
+
+	Market MarketView
+	Train  TrainView
 }
 
 type Hypo struct {
@@ -62,6 +66,10 @@ type Hypo struct {
 	Clock        float64
 	Seed         uint64
 	Event        int
+	MarketOn     bool
+	Price        float64
+	TrainShare   float64
+	SynthShare   float64
 }
 
 func HypoOf(s *State) Hypo {
@@ -69,6 +77,8 @@ func HypoOf(s *State) Hypo {
 		Upgrades: s.Upgrades, Params: s.Prestige.Params, GlobalEarned: s.GlobalMilestones,
 		Cards: s.CardMods, Infra: s.Infra, InfraOn: s.IsUnlocked(UnlockInfra),
 		Clock: s.Clock, Seed: s.Seed, Event: -1,
+		MarketOn: s.Derived.Market.On, Price: s.Derived.Market.Price,
+		TrainShare: s.Derived.Train.TrainShare, SynthShare: s.Derived.Train.SynthShare,
 	}
 	for i := range s.Businesses {
 		h.Owned[i] = s.Businesses[i].Owned
@@ -128,6 +138,9 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 	d.CritMult = b.Crit.Mult + cm.CritMult
 	d.CritEV = econ.CritEV(d.CritChance, d.CritMult)
 	d.Price = b.Market.PriceBase
+	if h.MarketOn {
+		d.Price = h.Price
+	}
 
 	cardEv, rackEv := 1.0, 1.0
 	for i := range N {
@@ -182,7 +195,9 @@ func evaluateInfra(b *balance.Balance, h *Hypo, d *Derived, need float64) {
 	d.ComputeNeed = need
 	d.EnergyIndex = infra.EnergyIndex(h.Seed, h.Clock, e)
 	d.Peak = infra.IsPeak(h.Clock, e)
-	d.ComputeCap, d.RackMW, d.EnergyNeed, d.EnergyAvail, d.EnergyUsed = 0, 0, 0, 0, 0
+	d.ComputeCap, d.RackMW, d.EnergyNeed, d.EnergyAvail, d.EnergyUsed, d.ComputeTotal = 0, 0, 0, 0, 0, 0
+	tv := &d.Train
+	tv.TrainShare, tv.SynthShare, tv.EnergyFrac = 0, 0, 0
 	d.GridUsed, d.PPAUsed, d.FreeUsed = 0, 0, 0
 	d.Throttle, d.CloudShare, d.EnergyShare, d.NetMult = 1, 0, 0, 1
 	if !h.InfraOn {
@@ -194,12 +209,15 @@ func evaluateInfra(b *balance.Balance, h *Hypo, d *Derived, need float64) {
 		d.ComputeCap += n * b.GPUGens[g].Compute
 		d.RackMW += n * b.GPUGens[g].MW
 	}
-	d.ComputeCap *= 1 + float64(in.Energy.Orbital)*e.OrbitalComputeBonus
+	orbital := 1 + float64(in.Energy.Orbital)*e.OrbitalComputeBonus
+	d.ComputeTotal = d.ComputeCap * orbital
+	reserve := h.TrainShare + h.SynthShare
+	d.ComputeCap = d.ComputeTotal * (1 - reserve)
 	util := 1.0
 	if d.ComputeCap > 0 {
 		util = math.Min(1, need/d.ComputeCap)
 	}
-	d.EnergyNeed = d.RackMW * util
+	d.EnergyNeed = d.RackMW * ((1-reserve)*util + reserve)
 	sup := infra.Supply{
 		FreeMW: float64(in.Energy.SMR)*e.SMRMW + float64(in.Energy.Orbital)*e.OrbitalMW,
 		GridMW: in.Energy.GridMW,
@@ -212,6 +230,11 @@ func evaluateInfra(b *balance.Balance, h *Hypo, d *Derived, need float64) {
 	d.EnergyAvail, d.EnergyUsed = l.EnergyAvail, l.EnergyUsed
 	d.GridUsed, d.PPAUsed, d.FreeUsed = l.GridUsed, l.PPAUsed, l.FreeUsed
 	d.Throttle = infra.Throttle(need, d.ComputeCap, d.EnergyNeed, l.EnergyAvail)
+	energyFrac := 1.0
+	if d.EnergyNeed > 0 {
+		energyFrac = math.Min(1, l.EnergyAvail/d.EnergyNeed)
+	}
+	tv.TrainShare, tv.SynthShare, tv.EnergyFrac = h.TrainShare, h.SynthShare, energyFrac
 	if in.CloudEnabled {
 		d.Throttle = 1
 		d.CloudShare = b.Infra.CloudRevenueShare
@@ -221,8 +244,11 @@ func evaluateInfra(b *balance.Balance, h *Hypo, d *Derived, need float64) {
 }
 
 func Recompute(s *State, b *balance.Balance) {
+	ev := timedEvent(s, b)
+	evaluateMarket(s, b, ev)
+	s.Derived.Train.TrainShare, s.Derived.Train.SynthShare = computeReserve(s, b)
 	h := HypoOf(s)
-	h.Event = timedEvent(s, b)
+	h.Event = ev
 	Evaluate(b, &h, &s.Derived)
 	d := &s.Derived
 	s.GlobalMilestones = d.GlobalMS
@@ -236,6 +262,7 @@ func Recompute(s *State, b *balance.Balance) {
 	d.BaseIncome = inc
 	d.IncomePerSec = inc * max(1, s.Combo.Mult)
 	s.Stats.BestIncome = math.Max(s.Stats.BestIncome, inc)
+	finishTrainView(s, b)
 }
 
 func BusinessCost(s *State, b *balance.Balance, i, k int) float64 {

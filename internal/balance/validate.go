@@ -261,12 +261,30 @@ func (b *Balance) Validate() error {
 		v.add("market.deflation_per_day", "must be in (0, 1]")
 	}
 	v.positive("market.hype_half_life_h", mk.HypeHalfLifeH)
+	if !(mk.RivalSpanDays > 1) {
+		v.add("market.rival_span_days", "must be > 1")
+	}
+	v.positive("market.base_benchmark", mk.BaseBenchmark)
+	v.nonNeg("market.release_hype", mk.ReleaseHype)
+	v.unit("market.pressure_floor", mk.PressureFloor)
+	sg := mk.Segments
+	v.nonNeg("market.segments.free_price", sg.FreePrice)
+	v.nonNeg("market.segments.free_hype_per_share", sg.FreeHypePerShare)
+	v.positive("market.segments.pro_price", sg.ProPrice)
+	v.positive("market.segments.enterprise_price", sg.EnterprisePrice)
+	v.unit("market.segments.enterprise_max_alloc", sg.EnterpriseMaxAlloc)
+	if len(b.Rivals) > MaxRivals {
+		v.add("rival", "at most %d rivals", MaxRivals)
+	}
 	rids := make([]string, len(b.Rivals))
 	for i, r := range b.Rivals {
 		rids[i] = r.ID
 		p := fmt.Sprintf("rival[%d](%s)", i, r.ID)
 		v.positive(p+".release_every_days", r.ReleaseEveryDays)
 		v.nonNeg(p+".release_jitter_days", r.ReleaseJitterDays)
+		if r.ReleaseJitterDays >= r.ReleaseEveryDays/2 {
+			v.add(p+".release_jitter_days", "must be below half of release_every_days")
+		}
 		v.positive(p+".price_pressure", r.PricePressure)
 		if r.StartBenchmark > r.EndBenchmark {
 			v.add(p, "start_benchmark greater than end_benchmark")
@@ -304,9 +322,61 @@ func (b *Balance) Validate() error {
 			v.add("training.architecture."+k, "must be in (0, 1]")
 		}
 	}
+	for k, id := range t.ArchitectureCard {
+		if _, ok := t.Architecture[k]; !ok {
+			v.add("training.architecture_card."+k, "no such architecture")
+		}
+		found := false
+		for _, c := range b.Card {
+			found = found || c.ID == id
+		}
+		if !found {
+			v.add("training.architecture_card."+k, "unknown card %q", id)
+		}
+	}
+	if t.MaxQueue <= 0 {
+		v.add("training.max_queue", "must be > 0")
+	}
+	v.positive("training.min_params", t.MinParams)
+	v.positive("training.flops_per_param_token", t.FlopsPerParamToken)
+	v.positive("training.cluster_rack_exponent", t.ClusterRackExponent)
+	if len(t.MaxParamsLevels) == 0 || len(t.MaxParamsUnlock) != len(t.MaxParamsLevels) {
+		v.add("training.max_params_unlock", "needs one threshold per max_params_levels entry")
+	}
+	for i := 1; i < len(t.MaxParamsLevels); i++ {
+		if t.MaxParamsLevels[i] <= t.MaxParamsLevels[i-1] {
+			v.add("training.max_params_levels", "must be strictly ascending")
+		}
+	}
+	for i := 1; i < len(t.MaxParamsUnlock); i++ {
+		if t.MaxParamsUnlock[i] < t.MaxParamsUnlock[i-1] {
+			v.add("training.max_params_unlock", "must be ascending")
+		}
+	}
+	if len(t.MaxParamsLevels) > 0 && t.MinParams > t.MaxParamsLevels[0] {
+		v.add("training.min_params", "greater than the first max_params level")
+	}
+	v.unit("training.synthetic_penalty_above", t.SyntheticPenaltyAbove)
+	if t.SyntheticPenaltyAbove >= 1 {
+		v.add("training.synthetic_penalty_above", "must be < 1")
+	}
+	v.nonNeg("training.synthetic_penalty", t.SyntheticPenalty)
+	v.positive("training.synthetic_flops_per_param", t.SyntheticFlopsPerParam)
 	v.nonNeg("data.unlock_lifetime", b.Data.UnlockLifetime)
 	if !(b.Data.ScraperR > 1) {
 		v.add("data.scraper_r", "must be > 1")
+	}
+	v.positive("data.scraper_cost", b.Data.ScraperCost)
+	v.positive("data.scraper_tokens_per_s", b.Data.ScraperTokensPerS)
+	v.nonNeg("data.scraper_incident_chance_per_h", b.Data.ScraperIncidentChancePerH)
+	v.nonNeg("data.scraper_incident_pause_s", b.Data.ScraperIncidentPauseS)
+	v.nonNeg("data.scraper_incident_fine_minutes", b.Data.ScraperIncidentFineMin)
+	v.positive("data.license_cost_minutes", b.Data.LicenseCostMinutes)
+	if len(b.Data.LicenseTokens) == 0 {
+		v.add("data.license_tokens", "must not be empty")
+	}
+	for i, x := range b.Data.LicenseTokens {
+		v.positive(fmt.Sprintf("data.license_tokens[%d]", i), x)
 	}
 
 	v.nonNeg("talent.unlock_lifetime", b.Talent.UnlockLifetime)

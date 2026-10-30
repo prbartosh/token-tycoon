@@ -15,11 +15,11 @@ type OfflineResult struct {
 }
 
 func OfflineCapS(s *State, b *balance.Balance) float64 {
-	return b.Offline.CapHoursStart * 3600
+	return math.Min(b.Offline.CapHoursMax, b.Offline.CapHoursStart+s.ResMods.OfflineCapH) * 3600
 }
 
 func OfflineEfficiency(s *State, b *balance.Balance) float64 {
-	return math.Min(b.Offline.EfficiencyMax, b.Offline.EfficiencyStart+s.CardMods.Offline)
+	return math.Min(b.Offline.EfficiencyMax, b.Offline.EfficiencyStart+s.CardMods.Offline+s.ResMods.OfflineEff)
 }
 
 func Offline(s *State, b *balance.Balance, elapsed float64, out []Event) (OfflineResult, []Event) {

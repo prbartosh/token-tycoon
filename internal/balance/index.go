@@ -24,6 +24,10 @@ type index struct {
 	byRarity    [len(Rarities)][]int
 	event       map[string]int
 	arch        []Arch
+	node        map[string]int
+	nodeReq     [][]int
+	nodeBranch  []int
+	trait       map[string]int
 }
 
 func (b *Balance) buildIndex() {
@@ -64,6 +68,20 @@ func (b *Balance) buildIndex() {
 	b.idx.event = make(map[string]int, len(b.Event))
 	for i, e := range b.Event {
 		b.idx.event[e.ID] = i
+	}
+	b.idx.node = make(map[string]int, len(b.ResearchNodes))
+	b.idx.nodeReq = make([][]int, len(b.ResearchNodes))
+	b.idx.nodeBranch = make([]int, len(b.ResearchNodes))
+	for i, n := range b.ResearchNodes {
+		b.idx.node[n.ID] = i
+		b.idx.nodeBranch[i] = BranchIndex(n.Branch)
+		for _, r := range n.Requires {
+			b.idx.nodeReq[i] = append(b.idx.nodeReq[i], b.idx.node[r])
+		}
+	}
+	b.idx.trait = make(map[string]int, len(b.TalentTraits))
+	for i, t := range b.TalentTraits {
+		b.idx.trait[t.ID] = i
 	}
 	b.idx.arch = b.idx.arch[:0]
 	for _, id := range slices.Sorted(maps.Keys(b.Training.Architecture)) {
@@ -122,4 +140,54 @@ func (b *Balance) ManagerCost(i int) float64 {
 		return bs.ManagerCost
 	}
 	return bs.Cost * b.BusinessDefaults.ManagerMult
+}
+
+func BranchIndex(id string) int {
+	for i, x := range Branches {
+		if x == id {
+			return i
+		}
+	}
+	return -1
+}
+
+func (b *Balance) NodeIndex(id string) (int, bool) {
+	i, ok := b.idx.node[id]
+	return i, ok
+}
+
+func (b *Balance) NodeRequires(i int) []int { return b.idx.nodeReq[i] }
+
+func (b *Balance) NodeBranch(i int) int { return b.idx.nodeBranch[i] }
+
+func (b *Balance) TraitIndex(id string) (int, bool) {
+	i, ok := b.idx.trait[id]
+	return i, ok
+}
+
+func (b *Balance) RegionIndex(id string) (int, bool) {
+	for i := range b.Regions {
+		if b.Regions[i].ID == id {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func (b *Balance) IncidentIndex(id string) (int, bool) {
+	for i := range b.Incidents {
+		if b.Incidents[i].ID == id {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func (b *Balance) TalentClassIndex(id string) (int, bool) {
+	for i, c := range b.TalentClasses {
+		if c.ID == id {
+			return i, true
+		}
+	}
+	return -1, false
 }

@@ -29,6 +29,21 @@ const (
 	CmdSetSegments
 	CmdAssignModel
 	CmdRetireModel
+	CmdHire
+	CmdFire
+	CmdCounterOffer
+	CmdAcceptContract
+	CmdDeclineContract
+	CmdFunding
+	CmdResearch
+	CmdAddRule
+	CmdDeleteRule
+	CmdToggleRule
+	CmdMoveRule
+	CmdEnterRegion
+	CmdCompliance
+	CmdRespond
+	CmdAGIInvest
 )
 
 const (
@@ -52,6 +67,7 @@ type Command struct {
 	Segments Segments
 	On       bool
 	Text     string
+	Rule     Rule
 }
 
 func Buy(business, qty int) Command {
@@ -107,3 +123,22 @@ func AssignModel(model int, segment string) Command {
 	return Command{Kind: CmdAssignModel, Business: -1, Index: model, Text: segment}
 }
 func RetireModel(model int) Command { return Command{Kind: CmdRetireModel, Business: -1, Index: model} }
+
+func Hire(class int) Command        { return Command{Kind: CmdHire, Business: -1, Index: class} }
+func Fire(i int) Command            { return Command{Kind: CmdFire, Business: -1, Index: i} }
+func CounterOffer() Command         { return Command{Kind: CmdCounterOffer, Business: -1} }
+func AcceptContract(i int) Command  { return Command{Kind: CmdAcceptContract, Business: -1, Index: i} }
+func DeclineContract(i int) Command { return Command{Kind: CmdDeclineContract, Business: -1, Index: i} }
+func FundingRound() Command         { return Command{Kind: CmdFunding, Business: -1} }
+func Research(node int) Command     { return Command{Kind: CmdResearch, Business: -1, Index: node} }
+func AddRule(r Rule) Command        { return Command{Kind: CmdAddRule, Business: -1, Rule: r} }
+func DeleteRule(i int) Command      { return Command{Kind: CmdDeleteRule, Business: -1, Index: i} }
+func ToggleRule(i int) Command      { return Command{Kind: CmdToggleRule, Business: -1, Index: i} }
+func MoveRule(i, delta int) Command {
+	return Command{Kind: CmdMoveRule, Business: -1, Index: i, Qty: delta}
+}
+
+func EnterRegion(i int) Command   { return Command{Kind: CmdEnterRegion, Business: -1, Index: i} }
+func BuyCompliance(i int) Command { return Command{Kind: CmdCompliance, Business: -1, Index: i} }
+func Respond(key string) Command  { return Command{Kind: CmdRespond, Business: -1, Text: key} }
+func AGIInvest() Command          { return Command{Kind: CmdAGIInvest, Business: -1} }

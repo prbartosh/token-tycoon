@@ -44,6 +44,37 @@ const (
 	EvScraper
 	EvLicense
 	EvScraperIncident
+	EvHired
+	EvFired
+	EvPoach
+	EvPoached
+	EvCounterOffer
+	EvContractOffer
+	EvContractAccepted
+	EvContractDeclined
+	EvContractDone
+	EvContractFailed
+	EvFunding
+	EvResearchStart
+	EvResearchDone
+	EvRuleAdded
+	EvRuleDeleted
+	EvRuleToggled
+	EvRuleMoved
+	EvRuleFired
+	EvAutoPrestige
+	EvRegion
+	EvCompliance
+	EvIncident
+	EvIncidentOK
+	EvIncidentMiss
+	EvQuarter
+	EvAGIInvest
+	EvAGIStage
+	EvAGITraining
+	EvAGIEnding
+	EvSILevel
+	EvAchievement
 )
 
 type Reject uint8
@@ -64,6 +95,11 @@ const (
 	RejectQueueFull
 	RejectTooLarge
 	RejectNeedBenchmark
+	RejectTeamFull
+	RejectNeedResearch
+	RejectNoCapital
+	RejectNeedRegion
+	RejectFinished
 )
 
 const (

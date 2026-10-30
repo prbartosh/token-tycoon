@@ -4,7 +4,6 @@
 package sim
 
 import (
-	"encoding/json"
 	"math"
 	"math/bits"
 
@@ -48,8 +47,14 @@ type State struct {
 	Market       Market         `json:"market"`
 	Training     Training       `json:"training"`
 	Talent       []Researcher   `json:"talent"`
+	Poach        Poach          `json:"poach"`
+	Incident     Incident       `json:"incident"`
+	Investors    Investors      `json:"investors"`
 	Contracts    []Contract     `json:"contracts"`
-	Research     []string       `json:"research"`
+	Offers       []Contract     `json:"contract_offers"`
+	ContractSeq  int            `json:"contract_seq"`
+	NextOfferS   float64        `json:"next_offer_s"`
+	Research     ResearchState  `json:"-"`
 	Cards        map[string]int `json:"cards"`
 	Rules        []Rule         `json:"rules"`
 	Prestige     Prestige       `json:"prestige"`
@@ -60,10 +65,12 @@ type State struct {
 	Settings     Settings       `json:"settings"`
 	Stats        Stats          `json:"stats"`
 
-	CardMods cards.Mods `json:"-"`
-	Combo    Combo      `json:"-"`
-	Undo     Undo       `json:"-"`
-	Derived  Derived    `json:"-"`
+	Achieved Bitset       `json:"-"`
+	CardMods cards.Mods   `json:"-"`
+	ResMods  ResearchMods `json:"-"`
+	Combo    Combo        `json:"-"`
+	Undo     Undo         `json:"-"`
+	Derived  Derived      `json:"-"`
 
 	rivals rivalCache
 }
@@ -106,6 +113,7 @@ type PPA struct {
 
 type Market struct {
 	UnlockedRegions []string `json:"unlocked_regions"`
+	Compliance      []string `json:"compliance"`
 	Segments        Segments `json:"segments"`
 	Hype            float64  `json:"hype"`
 	Reputation      float64  `json:"reputation"`
@@ -151,40 +159,32 @@ type TrainJob struct {
 }
 
 type Researcher struct {
-	Class string `json:"class"`
-	Name  string `json:"name"`
-	Trait string `json:"trait,omitempty"`
-}
-
-type Contract struct {
-	ID            string  `json:"id"`
-	Volume        float64 `json:"volume"`
-	Delivered     float64 `json:"delivered"`
-	MinBenchmark  float64 `json:"min_benchmark"`
-	DeadlineS     float64 `json:"deadline_s"`
-	RewardMinutes float64 `json:"reward_minutes"`
-}
-
-type Rule struct {
-	If      json.RawMessage `json:"if"`
-	Then    json.RawMessage `json:"then"`
-	Enabled bool            `json:"enabled"`
+	Class       string  `json:"class"`
+	Name        string  `json:"name"`
+	Trait       string  `json:"trait,omitempty"`
+	RaiseUntilS float64 `json:"raise_until_s"`
 }
 
 type Prestige struct {
-	Params         float64 `json:"params"`
-	ParamsLifetime float64 `json:"params_lifetime"`
-	Capital        float64 `json:"capital"`
-	VersionIndex   int     `json:"version_index"`
-	RoundIndex     int     `json:"round_index"`
-	ResetsL1       int     `json:"resets_l1"`
-	ResetsL2       int     `json:"resets_l2"`
-	RunStartS      float64 `json:"run_start_s"`
+	Params          float64 `json:"params"`
+	ParamsLifetime  float64 `json:"params_lifetime"`
+	Capital         float64 `json:"capital"`
+	CapitalLifetime float64 `json:"capital_lifetime"`
+	RoundStartS     float64 `json:"round_start_s"`
+	VersionIndex    int     `json:"version_index"`
+	RoundIndex      int     `json:"round_index"`
+	ResetsL1        int     `json:"resets_l1"`
+	ResetsL2        int     `json:"resets_l2"`
+	RunStartS       float64 `json:"run_start_s"`
 }
 
 type AGI struct {
-	Stage    int     `json:"stage"`
-	Invested float64 `json:"invested"`
+	Stage      int                          `json:"stage"`
+	Invested   float64                      `json:"invested"`
+	TrainEndsS float64                      `json:"train_ends_s"`
+	EndedS     float64                      `json:"ended_s"`
+	SILevel    int                          `json:"si_level"`
+	SIRecords  [balance.MaxSILevels]float64 `json:"si_records"`
 }
 
 type Streak struct {
@@ -207,22 +207,36 @@ type Settings struct {
 }
 
 type Stats struct {
-	PlayS        float64 `json:"play_s"`
-	OfflineS     float64 `json:"offline_s"`
-	Crits        int     `json:"crits"`
-	BestCombo    float64 `json:"best_combo"`
-	EventsCaught int     `json:"events_caught"`
-	Purchases    int     `json:"purchases"`
-	ManualStarts int     `json:"manual_starts"`
-	BoostPresses int     `json:"boost_presses"`
-	EventsSeen   int     `json:"events_seen"`
-	EventsMissed int     `json:"events_missed"`
-	CardsDropped int     `json:"cards_dropped"`
-	Grants       int     `json:"grants"`
-	BestIncome   float64 `json:"best_income"`
-	Models       int     `json:"models"`
-	BestBench    float64 `json:"best_benchmark"`
-	Incidents    int     `json:"scraper_incidents"`
+	PlayS           float64 `json:"play_s"`
+	OfflineS        float64 `json:"offline_s"`
+	Crits           int     `json:"crits"`
+	BestCombo       float64 `json:"best_combo"`
+	EventsCaught    int     `json:"events_caught"`
+	Purchases       int     `json:"purchases"`
+	ManualStarts    int     `json:"manual_starts"`
+	BoostPresses    int     `json:"boost_presses"`
+	EventsSeen      int     `json:"events_seen"`
+	EventsMissed    int     `json:"events_missed"`
+	CardsDropped    int     `json:"cards_dropped"`
+	Grants          int     `json:"grants"`
+	BestIncome      float64 `json:"best_income"`
+	Models          int     `json:"models"`
+	BestBench       float64 `json:"best_benchmark"`
+	Incidents       int     `json:"scraper_incidents"`
+	Hired           int     `json:"hired"`
+	Poached         int     `json:"poached"`
+	Retained        int     `json:"retained"`
+	ContractsDone   int     `json:"contracts_done"`
+	ContractsFailed int     `json:"contracts_failed"`
+	ResearchDone    int     `json:"research_done"`
+	RulesFired      int     `json:"rules_fired"`
+	IncidentsSeen   int     `json:"incidents_seen"`
+	IncidentsOK     int     `json:"incidents_handled"`
+	IncidentsMissed int     `json:"incidents_missed"`
+	Quarters        int     `json:"quarters"`
+	QuartersBeaten  int     `json:"quarters_beaten"`
+	FastestRunS     float64 `json:"fastest_run_s"`
+	AGIInvested     float64 `json:"agi_invested"`
 }
 
 type Combo struct {
@@ -260,9 +274,14 @@ func NewState(b *balance.Balance, seed uint64) State {
 		Money:    b.Start.Money,
 		Cards:    map[string]int{},
 		Settings: Settings{Notation: "letters", Advisor: b.UI.AdvisorDefault},
-		Market:   Market{Segments: Segments{Pro: 1}, UnlockedRegions: []string{}},
+		Market:   Market{Segments: Segments{Pro: 1}, UnlockedRegions: []string{}, Compliance: []string{}},
 		Combo:    Combo{Mult: 1},
+		Research: ResearchState{Active: -1},
 	}
+	normalizeTalent(&s, b)
+	normalizeContracts(&s, b)
+	normalizeRules(&s, b)
+	normalizeM5(&s, b)
 	resetBusinesses(&s, b)
 	cards.Compute(b, s.Cards, &s.CardMods)
 	checkUnlocks(&s, b, nil)
@@ -284,8 +303,18 @@ func Normalize(s *State, b *balance.Balance) {
 	if s.Cards == nil {
 		s.Cards = map[string]int{}
 	}
+	normalizeResearch(s, b)
+	computeResearch(s, b)
 	normalizeMarket(s, b)
 	normalizeTraining(s, b)
+	normalizeTalent(s, b)
+	normalizeContracts(s, b)
+	normalizeRules(s, b)
+	normalizeM5(s, b)
+	s.Prestige.RoundStartS = math.Min(math.Max(0, s.Prestige.RoundStartS), s.Clock)
+	if !(s.Prestige.Capital >= 0) || math.IsInf(s.Prestige.Capital, 0) {
+		s.Prestige.Capital = 0
+	}
 	for i := range s.Businesses {
 		s.Businesses[i].ID = b.Businesses[i].ID
 		if s.Businesses[i].Owned < 0 {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 )
 
 type validator struct{ errs []error }
@@ -292,19 +293,31 @@ func (b *Balance) Validate() error {
 	}
 	v.uniqueIDs("rival", rids)
 	gids := make([]string, len(b.Regions))
-	shareSum := 0.0
+	shareSum, homeShare := 0.0, 0.0
 	for i, r := range b.Regions {
 		gids[i] = r.ID
 		shareSum += r.MarketShare
+		p := fmt.Sprintf("region[%d](%s)", i, r.ID)
+		v.nonNeg(p+".market_share", r.MarketShare)
+		v.nonNeg(p+".entry_cost_minutes", r.EntryCostMinutes)
+		v.nonNeg(p+".enterprise_cost_minutes", r.EnterpriseCostMin)
 		switch r.Entry {
-		case "none", "compliance", "datacenter":
+		case EntryNone:
+			homeShare += r.MarketShare
+		case EntryCompliance, EntryDatacenter:
 		default:
-			v.add(fmt.Sprintf("region[%d].entry", i), "unknown entry %q", r.Entry)
+			v.add(p+".entry", "unknown entry %q", r.Entry)
 		}
 	}
 	v.uniqueIDs("region", gids)
+	if len(b.Regions) > MaxRegions {
+		v.add("region", "at most %d regions supported", MaxRegions)
+	}
 	if len(b.Regions) > 0 && math.Abs(shareSum-1) > 1e-9 {
 		v.add("region.market_share", "shares must sum to 1, got %v", shareSum)
+	}
+	if len(b.Regions) > 0 && !(homeShare > 0) {
+		v.add("region.entry", "at least one region with entry = \"none\" and a positive share is needed")
 	}
 
 	t := b.Training
@@ -386,19 +399,88 @@ func (b *Balance) Validate() error {
 		v.unit(fmt.Sprintf("talent_class[%d].salary_share", i), c.SalaryShare)
 	}
 	v.uniqueIDs("talent_class", cids)
+	for i, c := range b.TalentClasses {
+		v.nonNeg(fmt.Sprintf("talent_class[%d].speed", i), c.Speed)
+		v.nonNeg(fmt.Sprintf("talent_class[%d].hire_minutes", i), c.HireMinutes)
+	}
+	if b.Talent.MaxStaff <= 0 {
+		v.add("talent.max_staff", "must be > 0")
+	}
+	v.positive("talent.poach_window_s", b.Talent.PoachWindowS)
+	v.nonNeg("talent.poach_chance_per_h", b.Talent.PoachChancePerH)
+	if !(b.Talent.PoachCounterMult >= 1) {
+		v.add("talent.poach_counter_mult", "must be >= 1")
+	}
+	v.nonNeg("talent.poach_counter_days", b.Talent.PoachCounterDays)
+	if len(b.Talent.Names) == 0 {
+		v.add("talent.names", "must not be empty")
+	}
+	tids := make([]string, len(b.TalentTraits))
+	for i, tr := range b.TalentTraits {
+		tids[i] = tr.ID
+		p := fmt.Sprintf("talent_trait[%d](%s)", i, tr.ID)
+		if tr.Speed <= -1 {
+			v.add(p+".speed", "must be > -1")
+		}
+		if tr.LossMult != 0 && !(tr.LossMult > 0 && tr.LossMult <= 1) {
+			v.add(p+".loss_mult", "must be in (0, 1]")
+		}
+		if tr.ComputeMult != 0 && !(tr.ComputeMult > 0 && tr.ComputeMult <= 1) {
+			v.add(p+".compute_mult", "must be in (0, 1]")
+		}
+		v.nonNeg(p+".hype_per_h", tr.HypePerH)
+	}
+	v.uniqueIDs("talent_trait", tids)
 
 	c := b.Contracts
 	v.nonNeg("contracts.unlock_lifetime", c.UnlockLifetime)
 	v.rangePair("contracts.duration_min", c.DurationMin)
 	v.rangePair("contracts.volume_mult", c.VolumeMult)
 	v.rangePair("contracts.reward_minutes", c.RewardMinutes)
+	v.rangePair("contracts.benchmark_offset", c.BenchOffset)
+	if c.MaxActive <= 0 || c.Offers <= 0 {
+		v.add("contracts.max_active/offers", "must be > 0")
+	}
+	v.positive("contracts.offer_every_s", c.OfferEveryS)
+	v.positive("contracts.offer_life_s", c.OfferLifeS)
+	v.nonNeg("contracts.reputation_reward_bonus", c.RepRewardBonus)
+	v.positive("contracts.reputation_max", c.ReputationMax)
+	if len(c.DurationMin) == 2 && !(c.DurationMin[0] > 0) {
+		v.add("contracts.duration_min", "must be > 0")
+	}
 
 	v.nonNeg("safety.unlock_lifetime", b.Safety.UnlockLifetime)
 	if b.Safety.IncidentEveryHBase > b.Safety.IncidentEveryHMax {
 		v.add("safety.incident_every_h_base", "greater than incident_every_h_max")
 	}
+	v.positive("safety.incident_every_h_base", b.Safety.IncidentEveryHBase)
+	v.unit("safety.hype_loss", b.Safety.HypeLoss)
+	v.positive("safety.reaction_window_s", b.Safety.ReactionWindowS)
+	v.nonNeg("safety.reputation_bonus", b.Safety.ReputationBonus)
+	if b.Safety.Key == "" {
+		v.add("safety.key", "incidents need a reaction key")
+	}
+	for _, ev := range b.Event {
+		if ev.Key != "" && strings.EqualFold(ev.Key, b.Safety.Key) {
+			v.add("safety.key", "key %q is already used by event %q", b.Safety.Key, ev.ID)
+		}
+	}
+	if len(b.Incidents) == 0 {
+		v.add("safety_incident", "at least one incident kind is needed")
+	}
+	iids := make([]string, len(b.Incidents))
+	for i, in := range b.Incidents {
+		iids[i] = in.ID
+		p := fmt.Sprintf("safety_incident[%d](%s)", i, in.ID)
+		v.positive(p+".weight", in.Weight)
+		v.positive(p+".severity", in.Severity)
+	}
+	v.uniqueIDs("safety_incident", iids)
 	v.nonNeg("investors.unlock_lifetime", b.Investors.UnlockLifetime)
 	v.rangePair("investors.target_growth", b.Investors.TargetGrowth)
+	v.positive("investors.quarter_h", b.Investors.QuarterH)
+	v.nonNeg("investors.beat_bonus_capital", b.Investors.BeatBonusCapital)
+	v.nonNeg("investors.growth_weight", b.Investors.GrowthWeight)
 
 	p1 := b.Prestige.Layer1
 	v.positive("prestige.layer1.unlock_run_revenue", p1.UnlockRunRevenue)
@@ -419,7 +501,52 @@ func (b *Balance) Validate() error {
 	if len(p2.Rounds) == 0 {
 		v.add("prestige.layer2.rounds", "must not be empty")
 	}
+	v.nonNeg("prestige.layer2.valuation_mult", p2.ValuationMult)
 	v.nonNeg("research.unlock_lifetime", b.Research.UnlockLifetime)
+	if !(b.Research.AutoPrestigeRatio > 1) {
+		v.add("research.auto_prestige_ratio", "must be > 1")
+	}
+	if len(b.ResearchNodes) > MaxResearchNodes {
+		v.add("research_node", "at most %d nodes supported", MaxResearchNodes)
+	}
+	nids := make([]string, len(b.ResearchNodes))
+	seenNode := map[string]bool{}
+	for i, n := range b.ResearchNodes {
+		nids[i] = n.ID
+		p := fmt.Sprintf("research_node[%d](%s)", i, n.ID)
+		if BranchIndex(n.Branch) < 0 {
+			v.add(p+".branch", "unknown branch %q", n.Branch)
+		}
+		v.positive(p+".cost", n.Cost)
+		v.nonNeg(p+".time_h", n.TimeH)
+		for _, r := range n.Requires {
+			if !seenNode[r] {
+				v.add(p+".requires", "%q must be an earlier node", r)
+			}
+		}
+		seenNode[n.ID] = true
+		switch n.Effect {
+		case ResComputeMult, ResEnergyCost, ResIncidentMult, ResPenaltyMult, ResComplianceCost:
+			if !(n.Value >= 0 && n.Value <= 1) {
+				v.add(p+".value", "%s must be in [0, 1]", n.Effect)
+			}
+		case ResMaxParamsMult, ResRareCards:
+			if !(n.Value >= 1) {
+				v.add(p+".value", "%s must be >= 1", n.Effect)
+			}
+		case ResGPUGen:
+			g := int(n.Value)
+			if g < 1 || g > len(b.GPUGens) || !b.GPUGens[g-1].Research {
+				v.add(p+".value", "gpu_gen %v must name a generation with research = true", n.Value)
+			}
+		case ResEnterprise, ResContractSlots, ResContractReward, ResMaxModels, ResRuleSlots, ResOfflineEff,
+			ResOfflineCapH, ResCritChance, ResCardChance, ResAutoPrestige, ResOfflineRules:
+			v.positive(p+".value", n.Value)
+		default:
+			v.add(p+".effect", "unknown research effect %q", n.Effect)
+		}
+	}
+	v.uniqueIDs("research_node", nids)
 	v.nonNeg("agi.unlock_lifetime", b.AGI.UnlockLifetime)
 	aids := make([]string, len(b.AGIStages))
 	for i, s := range b.AGIStages {
@@ -430,6 +557,30 @@ func (b *Balance) Validate() error {
 		}
 	}
 	v.uniqueIDs("agi_stage", aids)
+	a := b.AGI
+	v.positive("agi.final_training_h", a.FinalTrainingH)
+	if !(a.FinalBenchmark > 0 && a.FinalBenchmark <= 100) {
+		v.add("agi.final_benchmark", "must be in (0, 100]")
+	}
+	v.positive("agi.si_every_oom", a.SIEveryOOM)
+	v.nonNeg("agi.si_bonus_per_level", a.SIBonusPerLevel)
+	if a.SIMaxLevels < 1 || a.SIMaxLevels > MaxSILevels {
+		v.add("agi.si_max_levels", "must be in 1..%d", MaxSILevels)
+	}
+	if len(b.AGIStages) == 0 || b.AGIStages[len(b.AGIStages)-1].Effect != AGIEnding {
+		v.add("agi_stage", "the last stage must have effect %q", AGIEnding)
+	}
+	for i, st := range b.AGIStages {
+		switch st.Effect {
+		case AGINoIncidents, AGIProfitX2, AGISynthetic, AGIFinalTraining:
+		case AGIEnding:
+			if i != len(b.AGIStages)-1 {
+				v.add(fmt.Sprintf("agi_stage[%d].effect", i), "%q must be the last stage", AGIEnding)
+			}
+		default:
+			v.add(fmt.Sprintf("agi_stage[%d].effect", i), "unknown effect %q", st.Effect)
+		}
+	}
 
 	v.unit("crit.chance", b.Crit.Chance)
 	if !(b.Crit.Mult >= 1) {

@@ -30,6 +30,7 @@ type TrainView struct {
 	ScraperPaused bool
 	LicenseCost   float64
 	LicenseTokens float64
+	MaxModels     int
 }
 
 type TrainEstimate struct {
@@ -62,8 +63,15 @@ func synthAllowed(s *State, b *balance.Balance) bool {
 	return i >= 0 && s.Training.Models[i].Benchmark >= b.Training.SyntheticMinBenchmark
 }
 
+func MaxModels(s *State, b *balance.Balance) int {
+	return b.Training.MaxModels + s.ResMods.MaxModels
+}
+
 func ArchMult(s *State, b *balance.Balance) float64 {
 	m := 1.0
+	if x := s.Derived.Talent.LossMult; x > 0 {
+		m *= x
+	}
 	for _, a := range b.Archs() {
 		if a.Card >= 0 && s.Cards[b.Card[a.Card].ID] > 0 {
 			m *= a.Mult
@@ -89,12 +97,13 @@ func finishTrainView(s *State, b *balance.Balance) {
 	if s.IsUnlocked(UnlockInfra) {
 		orbital := 1 + float64(s.Infra.Energy.Orbital)*b.Energy.OrbitalComputeBonus
 		tv.ClusterFLOPS = training.ClusterFLOPS(s.Infra.Racks[:], b.GPUGens, t.ClusterRackExponent) * orbital
-		speed := tv.EnergyFrac * (1 + s.CardMods.TrainingSpeed)
+		speed := tv.EnergyFrac * (1 + s.CardMods.TrainingSpeed) * s.Derived.Talent.Mult
 		tv.TrainFLOPS = tv.ClusterFLOPS * tv.TrainShare * speed
 		tv.SynthFLOPS = tv.ClusterFLOPS * tv.SynthShare * speed
 	}
 	tv.ParamsLevel = training.ParamsLevel(t, s.Lifetime.Total)
-	tv.MaxParams = training.MaxParams(t, tv.ParamsLevel)
+	tv.MaxParams = training.MaxParams(t, tv.ParamsLevel) * s.ResMods.MaxParamsMult
+	tv.MaxModels = MaxModels(s, b)
 	tv.ArchMult = ArchMult(s, b)
 	tv.BestBenchmark = BestBenchmark(s, b)
 	tv.SynthOK = synthAllowed(s, b)
@@ -154,8 +163,8 @@ func normalizeTraining(s *State, b *balance.Balance) {
 		}
 		j.Progress = math.Min(1, math.Max(0, j.Progress))
 	}
-	if len(tr.Models) > b.Training.MaxModels {
-		tr.Models = tr.Models[len(tr.Models)-b.Training.MaxModels:]
+	if lim := MaxModels(s, b); len(tr.Models) > lim {
+		tr.Models = tr.Models[len(tr.Models)-lim:]
 	}
 }
 
@@ -168,7 +177,7 @@ func EstimateTraining(s *State, b *balance.Balance, n, d, share float64) TrainEs
 	if d > 0 {
 		e.SynthFrac = e.Synthetic / d
 	}
-	e.Benchmark = training.Benchmark(n, d, e.ArchMult*training.SyntheticMult(e.SynthFrac, t), t)
+	e.Benchmark = training.Benchmark(n, d, e.ArchMult*synthMult(s, b, e.SynthFrac), t)
 	rate := plannedRate(s, share)
 	e.TimeS = math.Inf(1)
 	if rate > 0 {
@@ -186,7 +195,7 @@ func plannedRate(s *State, share float64) float64 {
 	if !(energy > 0) {
 		energy = 1
 	}
-	return tv.ClusterFLOPS * math.Min(1, math.Max(0, share)) * (1 + s.CardMods.TrainingSpeed) * energy
+	return tv.ClusterFLOPS * math.Min(1, math.Max(0, share)) * (1 + s.CardMods.TrainingSpeed) * s.Derived.Talent.Mult * energy
 }
 
 func SuggestTraining(s *State, b *balance.Balance, share, targetS float64) (n, d, bench float64) {
@@ -322,9 +331,9 @@ func tickData(s *State, b *balance.Balance, dt float64, out []Event, md mode) []
 	dd := &b.Data
 	if s.IsUnlocked(UnlockData) && tr.Scrapers > 0 && tr.ScraperPauseS <= s.Clock {
 		tr.DataTokens += float64(tr.Scrapers) * dd.ScraperTokensPerS * dt
-		if rate := dd.ScraperIncidentChancePerH * float64(tr.Scrapers) / 3600; !md.offline && rate > 0 {
+		if rate := dd.ScraperIncidentChancePerH * float64(tr.Scrapers) / 3600 * s.ResMods.IncidentMult; !md.offline && rate > 0 {
 			if s.RNG.Misc.Chance(1 - math.Exp(-rate*dt)) {
-				fine := math.Min(s.Money, MinutesOfIncome(s, dd.ScraperIncidentFineMin))
+				fine := math.Min(s.Money, MinutesOfIncome(s, dd.ScraperIncidentFineMin)*s.ResMods.IncidentMult)
 				s.Money -= fine
 				tr.ScraperPauseS = s.Clock + dd.ScraperIncidentPauseS
 				s.Stats.Incidents++
@@ -358,13 +367,25 @@ func tickTraining(s *State, b *balance.Balance, dt float64, out []Event) []Event
 	return release(s, b, out)
 }
 
+func synthMult(s *State, b *balance.Balance, frac float64) float64 {
+	if AGIDone(s, b, balance.AGISynthetic) {
+		return 1
+	}
+	return training.SyntheticMult(frac, &b.Training)
+}
+
 func release(s *State, b *balance.Balance, out []Event) []Event {
 	tr := &s.Training
-	t := &b.Training
 	j := tr.Queue[0]
 	tr.Queue = append(tr.Queue[:0], tr.Queue[1:]...)
-	bench := training.Benchmark(j.Params, j.Tokens, j.ArchMult*training.SyntheticMult(j.Synthetic, t), t)
-	if len(tr.Models) >= t.MaxModels {
+	bench := training.Benchmark(j.Params, j.Tokens, j.ArchMult*synthMult(s, b, j.Synthetic), &b.Training)
+	return addModel(s, b, Model{Params: j.Params, Tokens: j.Tokens, Benchmark: bench, ReleasedS: s.Clock, Synthetic: j.Synthetic}, out)
+}
+
+func addModel(s *State, b *balance.Balance, md Model, out []Event) []Event {
+	tr := &s.Training
+	bench := md.Benchmark
+	if len(tr.Models) >= MaxModels(s, b) {
 		worst := 0
 		for k := range tr.Models {
 			if tr.Models[k].Benchmark < tr.Models[worst].Benchmark {
@@ -375,10 +396,10 @@ func release(s *State, b *balance.Balance, out []Event) []Event {
 		out = append(out, Event{Kind: EvModelRetired, Business: -1, Index: worst})
 	}
 	tr.Released++
-	tr.Models = append(tr.Models, Model{
-		Name: "TT-" + strconv.Itoa(tr.Released), Params: j.Params, Tokens: j.Tokens,
-		Benchmark: bench, ReleasedS: s.Clock, Synthetic: j.Synthetic,
-	})
+	if md.Name == "" {
+		md.Name = "TT-" + strconv.Itoa(tr.Released)
+	}
+	tr.Models = append(tr.Models, md)
 	s.Stats.Models++
 	s.Stats.BestBench = math.Max(s.Stats.BestBench, bench)
 	mv := &s.Derived.Market

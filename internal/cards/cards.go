@@ -116,11 +116,21 @@ func Compute(b *balance.Balance, owned map[string]int, m *Mods) {
 
 func reduction(sum float64) float64 { return math.Max(0.1, 1+sum) }
 
-func Draw(b *balance.Balance, r *rng.Stream) int {
+func Draw(b *balance.Balance, r *rng.Stream, rare float64) int {
+	if !(rare >= 1) {
+		rare = 1
+	}
+	weight := func(i int, name string) float64 {
+		w := b.Cards.RarityWeights[name]
+		if i >= 2 {
+			w *= rare
+		}
+		return w
+	}
 	total := 0.0
 	for i, name := range balance.Rarities {
 		if len(b.CardsOfRarity(i)) > 0 {
-			total += b.Cards.RarityWeights[name]
+			total += weight(i, name)
 		}
 	}
 	if !(total > 0) {
@@ -133,7 +143,7 @@ func Draw(b *balance.Balance, r *rng.Stream) int {
 			continue
 		}
 		pick = i
-		x -= b.Cards.RarityWeights[name]
+		x -= weight(i, name)
 		if x < 0 {
 			break
 		}

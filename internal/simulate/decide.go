@@ -97,6 +97,9 @@ func (bt *bot) candidates(out []candidate) ([]candidate, float64) {
 	if s.IsUnlocked(sim.UnlockInfra) {
 		out = bt.infraCandidates(out, &base, &mgr, r0)
 	}
+	if s.IsUnlocked(sim.UnlockRegions) {
+		out = bt.regionCandidates(out, r0)
+	}
 	return out, r0
 }
 
@@ -193,7 +196,7 @@ func (bt *bot) maybePrestige() bool {
 		return false
 	}
 	ratio := pv.BonusAfter / pv.BonusNow
-	if pv.RunS < minRunS || (ratio < 2 && !(ratio >= 1.3 && pv.ReturnS <= 0.35*pv.RunS)) {
+	if pv.RunS < minRunS || (ratio < 2 && !(ratio >= 1.3 && pv.ReturnS <= 0.35*pv.RunS)) || len(bt.s.Contracts) > 0 {
 		return false
 	}
 	bt.exec(sim.PrestigeReset())
@@ -213,12 +216,16 @@ func (bt *bot) exec(c sim.Command) {
 }
 
 func (bt *bot) decide() {
-	if bt.maybePrestige() {
+	if bt.maybeFunding() || bt.maybePrestige() {
 		return
 	}
 	bt.maintainInfra()
 	bt.maintainMarket()
 	bt.maintainTraining()
+	bt.maintainM4()
+	if bt.maintainAGI() {
+		return
+	}
 	var buf [128]candidate
 	for range 50 {
 		cands, rate := bt.candidates(buf[:0])
@@ -285,6 +292,8 @@ func (bt *bot) decide() {
 			case sim.EvEnergy:
 				ok = true
 				bt.res.EnergyBuys++
+			case sim.EvRegion, sim.EvCompliance:
+				ok = true
 			}
 		}
 		bt.observe(bt.evs, bt.s.Clock)

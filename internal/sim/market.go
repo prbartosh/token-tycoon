@@ -23,6 +23,8 @@ type MarketView struct {
 	HypeGain     float64
 	Pressure     float64
 	EnterpriseOK bool
+	RegionMult   float64
+	EntShare     float64
 	Alloc        [NumSegments]float64
 	Model        [NumSegments]int
 	Quote        [NumSegments]market.Quote
@@ -115,7 +117,7 @@ func segmentModel(s *State, seg int) int {
 func evaluateMarket(s *State, b *balance.Balance, ev int) {
 	mv := &s.Derived.Market
 	m := &b.Market
-	*mv = MarketView{Price: m.PriceBase, Pressure: 1, Rank: 1}
+	*mv = MarketView{Price: m.PriceBase, Pressure: 1, Rank: 1, RegionMult: 1, EntShare: 1}
 	for seg := range mv.Model {
 		mv.Model[seg] = -1
 	}
@@ -151,15 +153,29 @@ func evaluateMarket(s *State, b *balance.Balance, ev int) {
 	}
 	ent := mv.Model[market.SegEnterprise]
 	mv.EnterpriseOK = ent >= 0 && s.Training.Models[ent].Benchmark >= m.Segments.EnterpriseMinBenchmark
-	mv.Alloc = effectiveAlloc(s.Market.Segments, mv.EnterpriseOK, m)
-	mv.Price = 0
-	for seg := range NumSegments {
-		mv.Price += mv.Alloc[seg] * mv.SegPrice[seg]
-	}
-	mv.HypeGain = market.HypeGainPerS(mv.Alloc[market.SegFree], mv.Quote[market.SegFree].Share, m)
+	mv.Alloc = effectiveAlloc(s.Market.Segments, mv.EnterpriseOK, EnterpriseCap(s, b))
+	mv.RegionMult, mv.EntShare = regionFactors(s, b)
+	mv.Price = marketPrice(mv, mv.RegionMult, mv.EntShare)
+	mv.HypeGain = market.HypeGainPerS(mv.Alloc[market.SegFree], mv.Quote[market.SegFree].Share, m) + s.Derived.Talent.HypePerS
 }
 
-func effectiveAlloc(sg Segments, entOK bool, m *balance.Market) [NumSegments]float64 {
+func marketPrice(mv *MarketView, mult, ent float64) float64 {
+	p := 0.0
+	for seg := range NumSegments {
+		sp := mv.SegPrice[seg]
+		if seg == market.SegEnterprise {
+			sp = ent*sp + (1-ent)*mv.SegPrice[market.SegPro]
+		}
+		p += mv.Alloc[seg] * sp
+	}
+	return p * mult
+}
+
+func EnterpriseCap(s *State, b *balance.Balance) float64 {
+	return math.Min(1, b.Market.Segments.EnterpriseMaxAlloc+s.ResMods.EnterpriseCap)
+}
+
+func effectiveAlloc(sg Segments, entOK bool, limit float64) [NumSegments]float64 {
 	f, p, e := math.Max(0, sg.Free), math.Max(0, sg.Pro), math.Max(0, sg.Enterprise)
 	sum := f + p + e
 	if !(sum > 0) || math.IsInf(sum, 0) {
@@ -169,7 +185,7 @@ func effectiveAlloc(sg Segments, entOK bool, m *balance.Market) [NumSegments]flo
 	if !entOK {
 		p, e = p+e, 0
 	}
-	if limit := m.Segments.EnterpriseMaxAlloc; e > limit {
+	if e > limit {
 		p, e = p+e-limit, limit
 	}
 	return [NumSegments]float64{f, p, e}
@@ -223,7 +239,7 @@ func setSegments(s *State, b *balance.Balance, c *Command, out []Event) []Event 
 	if sg.Enterprise > 0 && !s.Derived.Market.EnterpriseOK {
 		return reject(out, c, RejectNeedBenchmark, b.Market.Segments.EnterpriseMinBenchmark)
 	}
-	if limit := b.Market.Segments.EnterpriseMaxAlloc; sg.Enterprise > limit {
+	if limit := EnterpriseCap(s, b); sg.Enterprise > limit {
 		sg.Pro += sg.Enterprise - limit
 		sg.Enterprise = limit
 	}

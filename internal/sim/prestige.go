@@ -85,6 +85,9 @@ func prestige(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 	s.Prestige.ParamsLifetime += pv.Gain
 	s.Prestige.VersionIndex++
 	s.Prestige.ResetsL1++
+	if pv.RunS > 0 && (s.Stats.FastestRunS == 0 || pv.RunS < s.Stats.FastestRunS) {
+		s.Stats.FastestRunS = pv.RunS
+	}
 	s.Prestige.RunStartS = s.Clock
 	s.Money = b.Start.Money
 	s.Lifetime.Run = 0

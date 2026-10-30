@@ -15,6 +15,9 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "q":
 		return m, tea.Quit
 	}
+	if cmd, ok := m.reaction(k); ok {
+		return m, cmd
+	}
 	if m.away.open {
 		m.away.open = false
 		m.anim.Counter.Jump(m.away.res.Earned)
@@ -66,14 +69,13 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "p":
 		m.openPrestige()
 		return m, nil
+	case "P", "shift+p":
+		return m, m.openFunding()
+	case "o", "r", "R", "h", "H", "g", "G":
+		return m, nil
 	case "d":
 		if g := m.grant(); g.Claimable && g.Amount > 0 {
 			return m, m.exec(sim.ClaimGrant(m.today()))
-		}
-		return m, nil
-	case "h", "H", "g", "G":
-		if key := m.reactionKey(); key != "" && strings.EqualFold(key, k) {
-			return m, m.exec(sim.React(key))
 		}
 		return m, nil
 	}
@@ -105,6 +107,19 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m *Model) reaction(k string) (tea.Cmd, bool) {
+	if i, left := sim.ActiveIncident(m.s, m.b); i >= 0 && left > 0 && strings.EqualFold(k, m.b.Safety.Key) {
+		return m.exec(sim.Respond(m.b.Safety.Key)), true
+	}
+	if key := m.reactionKey(); key != "" && strings.EqualFold(key, k) {
+		return m.exec(sim.React(key)), true
+	}
+	if m.s.Poach.Active && k == "o" {
+		return m.exec(sim.CounterOffer()), true
+	}
+	return nil, false
 }
 
 func (m *Model) today() string { return m.now().Format(time.DateOnly) }
@@ -166,7 +181,7 @@ func (m *Model) click(ms tea.Mouse) tea.Cmd {
 		m.help = false
 		return nil
 	}
-	if m.modal.kind == modalRelease {
+	if m.modal.kind == modalRelease || m.modal.kind == modalFunded || m.modal.kind == modalEnding {
 		m.modal = modal{}
 		return nil
 	}

@@ -8,6 +8,7 @@ import (
 
 	"token-tycoon/internal/balance"
 	"token-tycoon/internal/i18n"
+	"token-tycoon/internal/sim"
 )
 
 func TestParse(t *testing.T) {
@@ -129,4 +130,102 @@ func TestGreedyUsesM3Systems(t *testing.T) {
 	if strings.Contains(out.String(), "!report") || !strings.Contains(out.String(), "TT-") {
 		t.Fatal(out.String())
 	}
+}
+
+func TestGreedyUsesM4Systems(t *testing.T) {
+	over := `
+[talent]
+unlock_lifetime = 1e13
+[contracts]
+unlock_lifetime = 1e13
+[prestige.layer2]
+unlock_lifetime = 1e16
+capital_log_offset = 15
+[research]
+unlock_lifetime = 1e16
+[rules]
+unlock_lifetime = 1e16
+`
+	b, err := balance.Parse(balance.DefaultTOML(), []byte(over))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Run(b, Config{Duration: 86400, Strategy: Greedy, Seed: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &r.Final
+	if s.Stats.Hired == 0 || s.Stats.ContractsDone+s.Stats.ContractsFailed == 0 {
+		t.Fatalf("talent %d contracts %d/%d", s.Stats.Hired, s.Stats.ContractsDone, s.Stats.ContractsFailed)
+	}
+	if len(r.Rounds) == 0 || s.Prestige.ResetsL2 != len(r.Rounds) || s.Stats.ResearchDone == 0 {
+		t.Fatalf("rounds %d research %d", len(r.Rounds), s.Stats.ResearchDone)
+	}
+	if len(s.Rules) == 0 || s.Stats.RulesFired == 0 {
+		t.Fatalf("rules %d fired %d", len(s.Rules), s.Stats.RulesFired)
+	}
+	var out bytes.Buffer
+	Report(&out, r, b, i18n.New(i18n.PL))
+	if strings.Contains(out.String(), "!report") || !strings.Contains(out.String(), "Rundy finansowania") {
+		t.Fatal(out.String())
+	}
+	t.Logf("hired %d poached %d kept %d contracts %d/%d rounds %d research %d rules fired %d",
+		s.Stats.Hired, s.Stats.Poached, s.Stats.Retained, s.Stats.ContractsDone, s.Stats.ContractsFailed,
+		len(r.Rounds), s.Stats.ResearchDone, s.Stats.RulesFired)
+}
+
+func TestGreedyFinishesGame(t *testing.T) {
+	over := `
+[market]
+regions_unlock_lifetime = 1e14
+[[region]]
+id = "eu"
+entry_cost_minutes = 15
+[[region]]
+id = "asia"
+entry_cost_minutes = 20
+[investors]
+unlock_lifetime = 1e13
+[agi]
+unlock_lifetime = 1e17
+si_every_oom = 1
+[[agi_stage]]
+id = "alignment"
+cost = 1e18
+[[agi_stage]]
+id = "compute"
+cost = 1e19
+[[agi_stage]]
+id = "data"
+cost = 1e20
+[[agi_stage]]
+id = "training"
+cost = 1e21
+[[agi_stage]]
+id = "evaluation"
+cost = 1e22
+`
+	b, err := balance.Parse(balance.DefaultTOML(), []byte(over))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Run(b, Config{Duration: 2 * 86400, Strategy: Greedy, Seed: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &r.Final
+	if r.EndingT < 0 || len(r.AGIStages) != len(b.AGIStages) || !sim.AGIEnded(s, b) {
+		t.Fatalf("ending not reached: stages %v lifetime %v", r.AGIStages, s.Lifetime.Total)
+	}
+	if sim.RegionsEntered(s, b) < 2 || s.Stats.IncidentsOK == 0 || s.Stats.Quarters == 0 || s.AGI.SILevel == 0 {
+		t.Fatalf("regions %d incidents %d quarters %d si %d", sim.RegionsEntered(s, b), s.Stats.IncidentsOK, s.Stats.Quarters, s.AGI.SILevel)
+	}
+	var out bytes.Buffer
+	Report(&out, r, b, i18n.New(i18n.EN))
+	if strings.Contains(out.String(), "!report") || !strings.Contains(out.String(), "Ending reached on day") {
+		t.Fatal(out.String())
+	}
+	t.Logf("ending at %.1f h, regions %d, incidents %d/%d, quarters %d/%d, achievements %d, SI %d",
+		r.EndingT/3600, sim.RegionsEntered(s, b), s.Stats.IncidentsOK, s.Stats.IncidentsSeen,
+		s.Stats.QuartersBeaten, s.Stats.Quarters, s.Achieved.Count(), s.AGI.SILevel)
 }

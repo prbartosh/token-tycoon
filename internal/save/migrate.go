@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"token-tycoon/internal/balance"
 	"token-tycoon/internal/rng"
@@ -13,6 +14,8 @@ var migrations = map[int]func(raw map[string]any) error{
 	1: migrate1to2,
 	2: migrate2to3,
 	3: migrate3to4,
+	4: migrate4to5,
+	5: migrate5to6,
 }
 
 func migrate(raw map[string]any) error {
@@ -202,5 +205,131 @@ func migrate3to4(raw map[string]any) error {
 			j["arch_mult"] = 1
 		}
 	}
+	return nil
+}
+
+func migrate4to5(raw map[string]any) error {
+	done := []any{}
+	switch r := raw["research"].(type) {
+	case []any:
+		done = r
+	case map[string]any:
+		if d, ok := r["done"].([]any); ok {
+			done = d
+		}
+	}
+	raw["research"] = map[string]any{"done": done, "active": "", "progress": 0}
+	if cs, ok := raw["contracts"].([]any); ok {
+		for i, x := range cs {
+			c, ok := x.(map[string]any)
+			if !ok {
+				return fmt.Errorf("contracts[%d]: not an object", i)
+			}
+			c["id"] = contractID(c["id"])
+			if _, ok := c["duration_s"]; !ok {
+				c["duration_s"] = 0
+			}
+		}
+	}
+	rules, _ := raw["rules"].([]any)
+	out := []any{}
+	for _, x := range rules {
+		r, ok := x.(map[string]any)
+		if !ok {
+			continue
+		}
+		if nr := legacyRule(r); nr != nil {
+			out = append(out, nr)
+		}
+	}
+	raw["rules"] = out
+	return nil
+}
+
+func contractID(v any) int {
+	switch x := v.(type) {
+	case string:
+		n := 0
+		for _, ch := range x {
+			if ch >= '0' && ch <= '9' {
+				n = n*10 + int(ch-'0')
+			}
+		}
+		return n
+	default:
+		n, _ := intOf(v)
+		return n
+	}
+}
+
+func legacyRule(r map[string]any) map[string]any {
+	conds, ok := r["if"].([]any)
+	if !ok || len(conds) == 0 || len(conds) > 2 {
+		return nil
+	}
+	if _, structured := conds[0].(map[string]any); structured {
+		return r
+	}
+	var ifs []any
+	for _, c := range conds {
+		arr, ok := c.([]any)
+		if !ok || len(arr) != 3 {
+			return nil
+		}
+		metric, _ := arr[0].(string)
+		op, _ := arr[1].(string)
+		val, _ := arr[2].(string)
+		if metric != "money" || (op != ">" && op != "<") {
+			return nil
+		}
+		n, rest, ok := strings.Cut(val, "x_cost:")
+		if !ok || rest != "best_roi" {
+			return nil
+		}
+		x, err := strconv.ParseFloat(n, 64)
+		if err != nil {
+			return nil
+		}
+		ifs = append(ifs, map[string]any{"metric": "money_x_best", "op": op, "value": x})
+	}
+	then, ok := r["then"].([]any)
+	if !ok || len(then) != 3 || then[0] != "buy" || then[1] != "best_roi" {
+		return nil
+	}
+	qty, err := intOf(then[2])
+	if err != nil || qty < 1 {
+		return nil
+	}
+	enabled, _ := r["enabled"].(bool)
+	return map[string]any{
+		"if":      ifs,
+		"then":    map[string]any{"action": "buy_best", "index": 0, "qty": qty, "value": 0},
+		"enabled": enabled,
+	}
+}
+
+func migrate5to6(raw map[string]any) error {
+	streams, _ := raw["rng"].(map[string]any)
+	if streams == nil {
+		streams = map[string]any{}
+		raw["rng"] = streams
+	}
+	if _, ok := streams["safety"]; ok {
+		return nil
+	}
+	seed, err := uint64Of(raw["seed"])
+	if err != nil {
+		return fmt.Errorf("seed: %w", err)
+	}
+	st := rng.NewStream(seed, rng.KeySafety)
+	data, err := st.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	var h string
+	if err := json.Unmarshal(data, &h); err != nil {
+		return err
+	}
+	streams["safety"] = h
 	return nil
 }

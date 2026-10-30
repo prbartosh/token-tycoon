@@ -68,6 +68,7 @@ const (
 	KeyRivals
 	KeyEnergy
 	KeyMisc
+	KeySafety
 )
 
 type Streams struct {
@@ -77,6 +78,7 @@ type Streams struct {
 	Rivals Stream `json:"rivals"`
 	Energy Stream `json:"energy"`
 	Misc   Stream `json:"misc"`
+	Safety Stream `json:"safety"`
 }
 
 func NewStreams(seed uint64) Streams {
@@ -87,6 +89,7 @@ func NewStreams(seed uint64) Streams {
 		Rivals: NewStream(seed, KeyRivals),
 		Energy: NewStream(seed, KeyEnergy),
 		Misc:   NewStream(seed, KeyMisc),
+		Safety: NewStream(seed, KeySafety),
 	}
 }
 

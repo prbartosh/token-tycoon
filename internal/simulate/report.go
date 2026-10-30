@@ -178,6 +178,46 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 			p("%s\n", c.T("report.training_time", format.Duration(r.TrainS), pct(r.TrainShareS/r.TrainS)))
 		}
 	}
+	if s.IsUnlocked(sim.UnlockTalent) {
+		p("%s\n", c.T("report.talent", len(s.Talent), s.Stats.Hired, s.Stats.Poached, s.Stats.Retained,
+			pct(s.Derived.Talent.Mult-1), pct(s.Derived.Talent.Salary)))
+	}
+	if s.IsUnlocked(sim.UnlockContracts) {
+		p("%s\n", c.T("report.contracts", s.Stats.ContractsDone, s.Stats.ContractsFailed, format.Number(s.Market.Reputation, n)))
+	}
+	if s.IsUnlocked(sim.UnlockLayer2) {
+		p("%s\n", c.T("report.rounds", len(r.Rounds), format.Number(s.Prestige.CapitalLifetime, n), format.Number(s.Prestige.Capital, n)))
+		for _, rd := range r.Rounds {
+			p("  %-10s %s\n", format.Duration(rd.T), c.T("report.round_line", format.Number(rd.Capital, n), format.Number(rd.Valuation, n)))
+		}
+	}
+	if s.IsUnlocked(sim.UnlockResearch) {
+		p("%s\n", c.T("report.research", s.Research.Done.Count(), len(b.ResearchNodes)))
+	}
+	if s.IsUnlocked(sim.UnlockRules) {
+		p("%s\n", c.T("report.rules", len(s.Rules), s.Stats.RulesFired))
+	}
+	if s.IsUnlocked(sim.UnlockSafety) {
+		p("%s\n", c.T("report.incidents", s.Stats.IncidentsSeen, s.Stats.IncidentsOK, s.Stats.IncidentsMissed))
+	}
+	if s.IsUnlocked(sim.UnlockInvestors) {
+		v := sim.Valuation(s, b)
+		p("%s\n", c.T("report.investors", s.Stats.QuartersBeaten, s.Stats.Quarters, format.Number(v.Valuation, n), pct(v.Bonus)))
+	}
+	if s.IsUnlocked(sim.UnlockRegions) {
+		p("%s\n", c.T("report.regions", sim.RegionsEntered(s, b), len(b.Regions), sim.RegionsCompliant(s, b),
+			format.Number(s.Derived.Market.RegionMult, n)))
+	}
+	if s.IsUnlocked(sim.UnlockAGI) {
+		p("%s\n", c.T("report.agi", min(s.AGI.Stage, len(b.AGIStages)), len(b.AGIStages), format.Number(s.Stats.AGIInvested, n), s.AGI.SILevel))
+	}
+	p("%s\n", c.T("report.achievements", s.Achieved.Count(), len(sim.Achievements)))
+	if r.EndingT >= 0 {
+		p("%s\n", c.T("report.ending_day", int(r.EndingT/86400)+1, format.Duration(r.EndingT)))
+	} else {
+		p("%s\n", c.T("report.ending_not", min(s.AGI.Stage, len(b.AGIStages)), len(b.AGIStages), format.Number(s.Lifetime.Total, n),
+			format.Number(b.AGI.UnlockLifetime, n)))
+	}
 	p("%s\n\n", c.T("report.grants", s.Stats.Grants, s.Streak.Day))
 
 	p("%s\n", c.T("report.timeline"))
@@ -206,6 +246,20 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 		}
 	}
 	tl(c.T("report.first_model"), firstModel)
+	tl(c.T("report.layer2_unlock"), r.Layer2T)
+	firstRound := -1.0
+	if len(r.Rounds) > 0 {
+		firstRound = r.Rounds[0].T
+	}
+	tl(c.T("report.first_round"), firstRound)
+	tl(c.T("report.regions_unlock"), r.RegionsT)
+	tl(c.T("report.agi_unlock"), r.AGIT)
+	for i, t := range r.AGIStages {
+		if i < len(b.AGIStages) {
+			tl(c.T("report.agi_stage", i+1, c.T(i18n.AGIKey(b.AGIStages[i].ID))), t)
+		}
+	}
+	tl(c.T("report.ending"), r.EndingT)
 	p("\n%s\n", c.T("report.unlocks"))
 	for _, u := range r.Unlocks {
 		p("  %-10s %s\n", format.Duration(u.T), unlockName(u.Unlock, b, c))

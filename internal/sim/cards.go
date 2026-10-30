@@ -6,7 +6,7 @@ import (
 )
 
 func dropCard(s *State, b *balance.Balance, out []Event) []Event {
-	i := cards.Draw(b, &s.RNG.Cards)
+	i := cards.Draw(b, &s.RNG.Cards, s.ResMods.RareCards)
 	if i < 0 {
 		return out
 	}

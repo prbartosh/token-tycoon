@@ -50,8 +50,13 @@ type Derived struct {
 	RackCostMult float64
 	ComputeTotal float64
 
+	SalaryShare  float64
+	TokensPerSec float64
+	AGIMult      float64
+
 	Market MarketView
 	Train  TrainView
+	Talent TalentView
 }
 
 type Hypo struct {
@@ -70,6 +75,16 @@ type Hypo struct {
 	Price        float64
 	TrainShare   float64
 	SynthShare   float64
+	Extra        ExtraMods
+}
+
+type ExtraMods struct {
+	ComputeMult float64
+	EnergyCost  float64
+	CritChance  float64
+	CardChance  float64
+	Salary      float64
+	ProfitMult  float64
 }
 
 func HypoOf(s *State) Hypo {
@@ -79,6 +94,14 @@ func HypoOf(s *State) Hypo {
 		Clock: s.Clock, Seed: s.Seed, Event: -1,
 		MarketOn: s.Derived.Market.On, Price: s.Derived.Market.Price,
 		TrainShare: s.Derived.Train.TrainShare, SynthShare: s.Derived.Train.SynthShare,
+		Extra: ExtraMods{
+			ComputeMult: s.ResMods.ComputeMult * s.Derived.Talent.ComputeMult,
+			EnergyCost:  s.ResMods.EnergyCost,
+			CritChance:  s.ResMods.CritChance,
+			CardChance:  s.ResMods.CardChance,
+			Salary:      s.Derived.Talent.Salary,
+			ProfitMult:  s.Derived.AGIMult,
+		},
 	}
 	for i := range s.Businesses {
 		h.Owned[i] = s.Businesses[i].Owned
@@ -95,6 +118,9 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 	var cycleMult, profitMult, costMult, computeMult [N]float64
 	for i := range N {
 		cycleMult[i], profitMult[i], costMult[i], computeMult[i] = cm.CycleMult, cm.ProfitBiz[i], cm.CostMult, cm.ComputeMult
+		if x := h.Extra.ComputeMult; x > 0 {
+			computeMult[i] *= x
+		}
 	}
 	for ui := range b.Upgrades {
 		if !h.Upgrades.Has(ui) {
@@ -134,7 +160,10 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 	d.GlobalMS = max(h.GlobalEarned, econ.GlobalMilestones(minOwned, m.GlobalThresholds, m.GlobalEvery))
 	d.GlobalMult = econ.MultPow(m.GlobalMult, d.GlobalMS) *
 		econ.Layer1Bonus(h.Params, b.Prestige.Layer1.BonusPerParam) * cm.ProfitAll
-	d.CritChance = math.Min(0.5, b.Crit.Chance+cm.CritChance)
+	if x := h.Extra.ProfitMult; x > 0 {
+		d.GlobalMult *= x
+	}
+	d.CritChance = math.Min(0.5, b.Crit.Chance+cm.CritChance+h.Extra.CritChance)
 	d.CritMult = b.Crit.Mult + cm.CritMult
 	d.CritEV = econ.CritEV(d.CritChance, d.CritMult)
 	d.Price = b.Market.PriceBase
@@ -165,7 +194,7 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 			rackEv = ev.Value
 		}
 	}
-	d.CardChance = math.Min(1, b.Cards.DropChancePerCycle*(1+cm.CardChance)*cardEv)
+	d.CardChance = math.Min(1, b.Cards.DropChancePerCycle*(1+cm.CardChance+h.Extra.CardChance)*cardEv)
 	d.RackCostMult = cm.RackCost * rackEv
 
 	need := 0.0
@@ -183,6 +212,8 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 		d.Continuous[i] = d.CycleS[i] < b.BusinessDefaults.ContinuousBarBelowS
 	}
 	evaluateInfra(b, h, d, need)
+	d.SalaryShare = h.Extra.Salary
+	d.NetMult = math.Max(0, d.NetMult-d.SalaryShare)
 	net := d.Throttle * d.NetMult
 	for i := range N {
 		d.PerCycle[i] *= net
@@ -240,10 +271,16 @@ func evaluateInfra(b *balance.Balance, h *Hypo, d *Derived, need float64) {
 		d.CloudShare = b.Infra.CloudRevenueShare
 	}
 	d.EnergyShare = infra.EnergyCostShare(l, d.EnergyIndex, in.Energy.PPA.Index, e.GridCostCoef) * h.Cards.EnergyCost
+	if x := h.Extra.EnergyCost; x > 0 {
+		d.EnergyShare *= x
+	}
 	d.NetMult = math.Max(0, 1-d.CloudShare-d.EnergyShare)
 }
 
 func Recompute(s *State, b *balance.Balance) {
+	computeResearch(s, b)
+	computeTalent(s, b)
+	s.Derived.AGIMult = AGIProfitMult(s, b)
 	ev := timedEvent(s, b)
 	evaluateMarket(s, b, ev)
 	s.Derived.Train.TrainShare, s.Derived.Train.SynthShare = computeReserve(s, b)
@@ -253,13 +290,18 @@ func Recompute(s *State, b *balance.Balance) {
 	d := &s.Derived
 	s.GlobalMilestones = d.GlobalMS
 	d.ComboMult = s.Combo.Mult
-	inc := 0.0
+	inc, steady := 0.0, 0.0
 	for i := range N {
 		if s.Businesses[i].Manager {
 			inc += d.PerSec[i]
+			steady += d.PerSec[i] / d.EventMult[i]
 		}
 	}
 	d.BaseIncome = inc
+	d.TokensPerSec = 0
+	if den := d.Price * d.NetMult; den > 0 {
+		d.TokensPerSec = steady / den
+	}
 	d.IncomePerSec = inc * max(1, s.Combo.Mult)
 	s.Stats.BestIncome = math.Max(s.Stats.BestIncome, inc)
 	finishTrainView(s, b)

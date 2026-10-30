@@ -110,9 +110,14 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 		earned += rev
 	}
 	earn(s, earned)
+	out = tickContracts(s, b, dt, earned, out, md)
+	out = tickTalent(s, b, dt, out, md)
+	out = tickSafety(s, b, dt, out, md)
+	out = tickResearch(s, b, dt, out)
 	out = tickData(s, b, dt, out, md)
 	out = tickTraining(s, b, dt, out)
 	out = tickMarket(s, b, s.Clock, dt, out)
+	from := s.Clock
 	s.Clock += dt
 	if md.offline {
 		s.Stats.OfflineS += dt
@@ -124,8 +129,11 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 	if s.IsUnlocked(UnlockInfra) && !s.Infra.StarterGiven {
 		out = grantStarter(s, b, out)
 	}
+	out = tickInvestors(s, b, out)
+	out = tickAGI(s, b, out)
 	Recompute(s, b)
-	return out
+	out = tickRules(s, b, from, out, md)
+	return checkAchievements(s, b, from, out)
 }
 
 func earn(s *State, x float64) {
@@ -207,6 +215,32 @@ func apply(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 		return assignModel(s, b, c, out)
 	case CmdRetireModel:
 		return retireModel(s, b, c, out)
+	case CmdHire:
+		return hire(s, b, c, out)
+	case CmdFire:
+		return fire(s, b, c, out)
+	case CmdCounterOffer:
+		return counterOffer(s, b, c, out)
+	case CmdAcceptContract:
+		return acceptContract(s, b, c, out)
+	case CmdDeclineContract:
+		return declineContract(s, b, c, out)
+	case CmdFunding:
+		return fundingRound(s, b, c, out)
+	case CmdResearch:
+		return startResearch(s, b, c, out)
+	case CmdAddRule:
+		return addRule(s, b, c, out)
+	case CmdDeleteRule, CmdToggleRule, CmdMoveRule:
+		return editRule(s, b, c, out)
+	case CmdEnterRegion:
+		return enterRegion(s, b, c, out)
+	case CmdCompliance:
+		return buyCompliance(s, b, c, out)
+	case CmdRespond:
+		return respond(s, b, c, out)
+	case CmdAGIInvest:
+		return agiInvest(s, b, c, out)
 	}
 	return reject(out, c, RejectInvalid, 0)
 }

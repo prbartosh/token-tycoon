@@ -102,7 +102,7 @@ func (m *Model) marketRows(t *tabList) {
 		t.item(actSegment, seg, st.Render(m.cell(c.T("segment."+name), 12))+st.Render(m.cell(pct(mv.Alloc[seg]), 6))+bar.String()+" "+
 			widgets.Fit(m.costText(mv.SegPrice[seg]), 10)+th.Dim.Render(" "+m.cell(model, 8)+" "+desc))
 	}
-	t.text(th.Dim.Render(c.T("ui.market.hype_gain", fixed(mv.HypeGain*3600, 3), fixed(sim.SteadyHype(s, m.b, mv.Alloc[market.SegFree]), 2))))
+	t.text(th.Dim.Render(c.T("ui.market.hype_gain", fixed((mv.HypeGain-s.Derived.Talent.HypePerS)*3600, 3), fixed(sim.SteadyHype(s, m.b, mv.Alloc[market.SegFree]), 2))))
 }
 
 func (m *Model) adjustSegment(seg int, delta float64) tea.Cmd {

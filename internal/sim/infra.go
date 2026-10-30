@@ -209,7 +209,8 @@ func updateGens(s *State, b *balance.Balance, out []Event) []Event {
 	if !s.IsUnlocked(UnlockInfra) {
 		return out
 	}
-	for s.Infra.GPUGen < len(b.GPUGens) && s.Lifetime.Total >= b.GPUGens[s.Infra.GPUGen].UnlockLifetime {
+	for s.Infra.GPUGen < len(b.GPUGens) && s.Lifetime.Total >= b.GPUGens[s.Infra.GPUGen].UnlockLifetime &&
+		(!b.GPUGens[s.Infra.GPUGen].Research || s.ResMods.GPUGen > s.Infra.GPUGen) {
 		s.Infra.GPUGen++
 		out = append(out, Event{Kind: EvGPUGen, Business: -1, Index: s.Infra.GPUGen})
 	}

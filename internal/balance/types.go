@@ -23,11 +23,14 @@ type Balance struct {
 	Data             Data             `toml:"data"`
 	Talent           Talent           `toml:"talent"`
 	TalentClasses    []TalentClass    `toml:"talent_class"`
+	TalentTraits     []TalentTrait    `toml:"talent_trait"`
 	Contracts        Contracts        `toml:"contracts"`
 	Safety           Safety           `toml:"safety"`
+	Incidents        []Incident       `toml:"safety_incident"`
 	Investors        Investors        `toml:"investors"`
 	Prestige         Prestige         `toml:"prestige"`
 	Research         Research         `toml:"research"`
+	ResearchNodes    []ResearchNode   `toml:"research_node"`
 	AGI              AGI              `toml:"agi"`
 	AGIStages        []AGIStage       `toml:"agi_stage"`
 	Crit             Crit             `toml:"crit"`
@@ -130,6 +133,7 @@ type GPUGen struct {
 	MW             float64 `toml:"mw"`
 	FlopsPerRack   float64 `toml:"flops_per_rack"`
 	UnlockLifetime float64 `toml:"unlock_lifetime"`
+	Research       bool    `toml:"research"`
 }
 
 type Energy struct {
@@ -190,11 +194,20 @@ type Rival struct {
 }
 
 type Region struct {
-	ID               string  `toml:"id"`
-	MarketShare      float64 `toml:"market_share"`
-	Entry            string  `toml:"entry"`
-	EntryCostMinutes float64 `toml:"entry_cost_minutes"`
+	ID                string  `toml:"id"`
+	MarketShare       float64 `toml:"market_share"`
+	Entry             string  `toml:"entry"`
+	EntryCostMinutes  float64 `toml:"entry_cost_minutes"`
+	EnterpriseCostMin float64 `toml:"enterprise_cost_minutes"`
 }
+
+const (
+	EntryNone       = "none"
+	EntryCompliance = "compliance"
+	EntryDatacenter = "datacenter"
+)
+
+const MaxRegions = 8
 
 type Training struct {
 	UnlockLifetime         float64            `toml:"unlock_lifetime"`
@@ -238,10 +251,13 @@ type Data struct {
 }
 
 type Talent struct {
-	UnlockLifetime   float64 `toml:"unlock_lifetime"`
-	PoachWindowS     float64 `toml:"poach_window_s"`
-	PoachCounterMult float64 `toml:"poach_counter_mult"`
-	PoachCounterDays float64 `toml:"poach_counter_days"`
+	UnlockLifetime   float64  `toml:"unlock_lifetime"`
+	PoachWindowS     float64  `toml:"poach_window_s"`
+	PoachCounterMult float64  `toml:"poach_counter_mult"`
+	PoachCounterDays float64  `toml:"poach_counter_days"`
+	MaxStaff         int      `toml:"max_staff"`
+	PoachChancePerH  float64  `toml:"poach_chance_per_h"`
+	Names            []string `toml:"names"`
 }
 
 type TalentClass struct {
@@ -249,6 +265,15 @@ type TalentClass struct {
 	SalaryShare float64 `toml:"salary_share"`
 	Speed       float64 `toml:"speed"`
 	Trait       bool    `toml:"trait"`
+	HireMinutes float64 `toml:"hire_minutes"`
+}
+
+type TalentTrait struct {
+	ID          string  `toml:"id"`
+	Speed       float64 `toml:"speed"`
+	LossMult    float64 `toml:"loss_mult"`
+	HypePerH    float64 `toml:"hype_per_h"`
+	ComputeMult float64 `toml:"compute_mult"`
 }
 
 type Contracts struct {
@@ -259,6 +284,13 @@ type Contracts struct {
 	RewardMinutes  []float64 `toml:"reward_minutes"`
 	ReputationGain float64   `toml:"reputation_gain"`
 	ReputationLoss float64   `toml:"reputation_loss"`
+	Offers         int       `toml:"offers"`
+	OfferEveryS    float64   `toml:"offer_every_s"`
+	OfferLifeS     float64   `toml:"offer_life_s"`
+	BenchOffset    []float64 `toml:"benchmark_offset"`
+	MinBenchFloor  float64   `toml:"min_benchmark_floor"`
+	RepRewardBonus float64   `toml:"reputation_reward_bonus"`
+	ReputationMax  float64   `toml:"reputation_max"`
 }
 
 type Safety struct {
@@ -267,6 +299,14 @@ type Safety struct {
 	IncidentEveryHMax  float64 `toml:"incident_every_h_max"`
 	HypeLoss           float64 `toml:"hype_loss"`
 	ReactionWindowS    float64 `toml:"reaction_window_s"`
+	Key                string  `toml:"key"`
+	ReputationBonus    float64 `toml:"reputation_bonus"`
+}
+
+type Incident struct {
+	ID       string  `toml:"id"`
+	Weight   float64 `toml:"weight"`
+	Severity float64 `toml:"severity"`
 }
 
 type Investors struct {
@@ -274,6 +314,7 @@ type Investors struct {
 	QuarterH         float64   `toml:"quarter_h"`
 	TargetGrowth     []float64 `toml:"target_growth"`
 	BeatBonusCapital float64   `toml:"beat_bonus_capital"`
+	GrowthWeight     float64   `toml:"growth_weight"`
 }
 
 type Prestige struct {
@@ -296,15 +337,68 @@ type PrestigeLayer2 struct {
 	CapitalLogOffset float64  `toml:"capital_log_offset"`
 	CapitalExponent  float64  `toml:"capital_exponent"`
 	Rounds           []string `toml:"rounds"`
+	ValuationMult    float64  `toml:"valuation_mult"`
 }
 
 type Research struct {
-	UnlockLifetime float64 `toml:"unlock_lifetime"`
+	UnlockLifetime    float64 `toml:"unlock_lifetime"`
+	AutoPrestigeRatio float64 `toml:"auto_prestige_ratio"`
+}
+
+const MaxResearchNodes = 192
+
+var Branches = [...]string{"efficiency", "scale", "product", "automation", "safety", "luck"}
+
+const (
+	ResComputeMult    = "compute_mult"
+	ResEnergyCost     = "energy_cost"
+	ResMaxParamsMult  = "max_params_mult"
+	ResGPUGen         = "gpu_gen"
+	ResEnterprise     = "enterprise_alloc"
+	ResContractSlots  = "contract_slots"
+	ResContractReward = "contract_reward"
+	ResMaxModels      = "max_models"
+	ResRuleSlots      = "rule_slots"
+	ResAutoPrestige   = "auto_prestige"
+	ResOfflineEff     = "offline_eff"
+	ResOfflineCapH    = "offline_cap_h"
+	ResOfflineRules   = "offline_rules"
+	ResIncidentMult   = "incident_mult"
+	ResPenaltyMult    = "penalty_mult"
+	ResCritChance     = "crit_chance"
+	ResCardChance     = "card_chance"
+	ResRareCards      = "rare_cards"
+	ResComplianceCost = "compliance_cost"
+)
+
+type ResearchNode struct {
+	ID       string   `toml:"id"`
+	Branch   string   `toml:"branch"`
+	Cost     float64  `toml:"cost"`
+	TimeH    float64  `toml:"time_h"`
+	Requires []string `toml:"requires"`
+	Effect   string   `toml:"effect"`
+	Value    float64  `toml:"value"`
 }
 
 type AGI struct {
-	UnlockLifetime float64 `toml:"unlock_lifetime"`
+	UnlockLifetime  float64 `toml:"unlock_lifetime"`
+	FinalTrainingH  float64 `toml:"final_training_h"`
+	FinalBenchmark  float64 `toml:"final_benchmark"`
+	SIEveryOOM      float64 `toml:"si_every_oom"`
+	SIBonusPerLevel float64 `toml:"si_bonus_per_level"`
+	SIMaxLevels     int     `toml:"si_max_levels"`
 }
+
+const (
+	AGINoIncidents   = "no_incidents"
+	AGIProfitX2      = "all_profit_x2"
+	AGISynthetic     = "synthetic_no_penalty"
+	AGIFinalTraining = "final_training"
+	AGIEnding        = "ending"
+)
+
+const MaxSILevels = 32
 
 type AGIStage struct {
 	ID     string  `toml:"id"`

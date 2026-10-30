@@ -32,6 +32,18 @@ const (
 	actJob
 	actModel
 	actSegment
+	actHire
+	actStaff
+	actOffer
+	actContract
+	actFunding
+	actNode
+	actRule
+	actRuleNew
+	actRegion
+	actCompliance
+	actAGI
+	actEnding
 )
 
 type tkey struct {
@@ -91,11 +103,27 @@ func (m *Model) tabRows(w int) []trow {
 		m.infraRows(t)
 	case m.tab == tabModels:
 		m.modelRows(t)
+		if m.s.IsUnlocked(sim.UnlockTalent) {
+			m.talentRows(t)
+		}
 	case m.tab == tabMarket:
 		m.marketRows(t)
-	default:
-		t.blank()
-		t.text(m.th.Text.Render(m.cat.T("ui.tab.soon", m.unlockName(tabUnlock[m.tab]))))
+		if m.s.IsUnlocked(sim.UnlockRegions) {
+			m.regionRows(t)
+		}
+		if m.s.IsUnlocked(sim.UnlockInvestors) {
+			m.investorRows(t)
+		}
+		if m.s.IsUnlocked(sim.UnlockContracts) {
+			m.contractRows(t)
+		}
+	case m.tab == tabResearch:
+		if m.s.IsUnlocked(sim.UnlockAGI) {
+			m.agiRows(t)
+		}
+		m.researchRows(t)
+	case m.tab == tabRules:
+		m.rulesRows(t)
 	}
 	m.trows = t.rows
 	return t.rows
@@ -254,6 +282,26 @@ func (m *Model) tabEnter() tea.Cmd {
 		return m.exec(sim.Train(m.draft.n, m.draft.d, m.draft.share))
 	case actModel:
 		return m.cycleSegment(k.idx)
+	case actHire:
+		return m.exec(sim.Hire(k.idx))
+	case actOffer:
+		return m.exec(sim.AcceptContract(k.idx))
+	case actFunding:
+		return m.openFunding()
+	case actNode:
+		return m.exec(sim.Research(k.idx))
+	case actRule:
+		return m.exec(sim.ToggleRule(k.idx))
+	case actRuleNew:
+		m.openWizard()
+	case actRegion:
+		return m.exec(sim.EnterRegion(k.idx))
+	case actCompliance:
+		return m.exec(sim.BuyCompliance(k.idx))
+	case actAGI:
+		return m.agiEnter(k)
+	case actEnding:
+		m.modal = modal{kind: modalEnding}
 	}
 	return nil
 }
@@ -285,6 +333,11 @@ func (m *Model) tabAdjust(dir int) tea.Cmd {
 		return m.exec(sim.SetSynthetic(math.Min(synthMax, math.Max(0, sh))))
 	case actSegment:
 		return m.adjustSegment(k.idx, float64(dir)*segStep)
+	case actRule:
+		if j := k.idx - dir; j >= 0 && j < len(s.Rules) {
+			m.tsel[m.tab] = tkey{act: actRule, idx: j}
+			return m.exec(sim.MoveRule(k.idx, -dir))
+		}
 	}
 	return nil
 }
@@ -300,6 +353,12 @@ func (m *Model) tabRemove() tea.Cmd {
 		if k.idx < len(m.s.Training.Models) {
 			m.modal = modal{kind: modalRetire, idx: k.idx}
 		}
+	case actStaff:
+		return m.exec(sim.Fire(k.idx))
+	case actOffer:
+		return m.exec(sim.DeclineContract(k.idx))
+	case actRule:
+		return m.exec(sim.DeleteRule(k.idx))
 	}
 	return nil
 }
@@ -396,6 +455,36 @@ func (m *Model) tabKeyItems(items []string) []string {
 		items = append(items, c.T("ui.key.assign"), c.T("ui.key.retire"))
 	case actSegment:
 		items = append(items, c.T("ui.key.adjust"))
+	case actHire:
+		items = append(items, c.T("ui.key.hire", m.money(sim.HireCost(m.s, m.b, k.idx))))
+	case actStaff:
+		items = append(items, c.T("ui.key.fire"))
+	case actOffer:
+		items = append(items, c.T("ui.key.accept"), c.T("ui.key.decline"))
+	case actFunding:
+		items = append(items, c.T("ui.key.preview"))
+	case actNode:
+		if sim.NodeState(m.s, m.b, k.idx) == sim.NodeAvailable {
+			items = append(items, c.T("ui.key.research", m.num(m.b.ResearchNodes[k.idx].Cost)))
+		}
+	case actRule:
+		items = append(items, c.T("ui.key.toggle"), c.T("ui.key.priority"), c.T("ui.key.delete_rule"))
+	case actRuleNew:
+		items = append(items, c.T("ui.key.new_rule"))
+	case actRegion:
+		if !sim.RegionEntered(m.s, m.b, k.idx) {
+			items = append(items, c.T("ui.key.enter_region", m.money(sim.EntryCost(m.s, m.b, k.idx))))
+		}
+	case actCompliance:
+		if sim.RegionEntered(m.s, m.b, k.idx) && !sim.RegionCompliant(m.s, m.b, k.idx) {
+			items = append(items, c.T("ui.key.compliance", m.money(sim.ComplianceCost(m.s, m.b, k.idx))))
+		}
+	case actAGI:
+		if k.idx == m.s.AGI.Stage && !sim.AGIEnded(m.s, m.b) && m.s.AGI.TrainEndsS == 0 {
+			items = append(items, c.T("ui.key.agi_invest"))
+		}
+	case actEnding:
+		items = append(items, c.T("ui.key.ending"))
 	}
 	return items
 }

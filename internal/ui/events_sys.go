@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strconv"
+	"strings"
 
 	"token-tycoon/internal/balance"
 	"token-tycoon/internal/i18n"
@@ -167,6 +168,99 @@ func (m *Model) systemEvent(e *sim.Event, quiet bool) {
 		msg = c.T("msg.license", m.num(e.Value), m.money(e.Amount))
 	case sim.EvScraperIncident:
 		msg, kind, toast = c.T("msg.scraper_incident", m.money(e.Amount), m.dur(e.Value)), anim.KindWarn, true
+	case sim.EvHired:
+		msg = c.T("msg.hired", m.staffName(e.Index), m.money(e.Amount))
+		if e.Count >= 0 && e.Count < len(m.b.TalentTraits) {
+			msg, kind, toast = c.T("msg.hired_star", m.staffName(e.Index), m.traitName(m.b.TalentTraits[e.Count].ID)), anim.KindEpic, true
+		}
+	case sim.EvFired:
+		msg = c.T("msg.fired")
+	case sim.EvPoach:
+		msg, kind, toast = c.T("msg.poach", m.staffName(e.Index), m.dur(e.Value)), anim.KindWarn, true
+	case sim.EvPoached:
+		msg, kind, toast = c.T("msg.poached"), anim.KindWarn, true
+	case sim.EvCounterOffer:
+		msg, kind, toast = c.T("msg.counter_offer", m.staffName(e.Index), m.dur(e.Value)), anim.KindInfo, true
+	case sim.EvContractOffer:
+		msg = c.T("msg.contract_offer", e.Count)
+		toast = m.tab == tabMarket
+	case sim.EvContractAccepted:
+		msg = c.T("msg.contract_accepted", e.Count, m.num(e.Amount), m.dur(e.Value))
+	case sim.EvContractDeclined:
+		msg = c.T("msg.contract_declined", e.Count)
+	case sim.EvContractDone:
+		msg, kind, toast = c.T("msg.contract_done", e.Count, m.money(e.Amount), fixed(e.Value, 0)), anim.KindCrit, true
+	case sim.EvContractFailed:
+		msg, kind, toast = c.T("msg.contract_failed", e.Count, fixed(e.Value, 0)), anim.KindWarn, true
+	case sim.EvFunding:
+		name := m.roundName(e.Index)
+		msg, kind, toast = c.T("msg.funding", name, m.num(e.Amount)), anim.KindCrit, true
+		m.draft = trainDraft{}
+		m.anim.Money.Jump(m.s.Money)
+		m.spark, m.sparkN, m.sparkAcc, m.sparkSteps = [sparkLen]float64{}, 0, 0, 0
+		m.sel = row{kind: rowBusiness}
+		m.scroll = 0
+		if !quiet {
+			m.modal = modal{kind: modalFunded, name: name, share: e.Amount}
+			m.anim.Counter.Jump(0)
+			m.anim.Counter.Set(e.Value)
+		}
+	case sim.EvResearchStart:
+		msg = c.T("msg.research_start", m.nodeName(e.Index), m.num(e.Amount))
+	case sim.EvResearchDone:
+		msg, kind, toast = c.T("msg.research_done", m.nodeName(e.Index)), anim.KindMilestone, true
+		if m.tab != tabResearch {
+			m.newTab[tabResearch] = true
+		}
+	case sim.EvRuleAdded:
+		msg = c.T("msg.rule_added", e.Index+1)
+	case sim.EvRuleDeleted:
+		msg = c.T("msg.rule_deleted", e.Index+1)
+	case sim.EvRuleToggled:
+		msg = c.T(onOff("msg.rule", e.Count == 1), e.Index+1)
+	case sim.EvRuleMoved:
+		m.setStatus(c.T("msg.rule_moved", e.Count+1, e.Index+1), false)
+		return
+	case sim.EvRuleFired:
+		m.addRuleLog("[" + m.dur(m.s.Clock) + "] " + m.ruleFired(e))
+		return
+	case sim.EvAutoPrestige:
+		msg = c.T("msg.auto_prestige", m.num(e.Amount))
+	case sim.EvRegion:
+		msg, kind, toast = c.T("msg.region", m.regionName(e.Index), m.money(e.Amount), fixed(e.Value, 2)), anim.KindMilestone, true
+	case sim.EvCompliance:
+		msg = c.T("msg.compliance", m.regionName(e.Index), m.money(e.Amount))
+	case sim.EvIncident:
+		msg, kind, toast = c.T("msg.incident", m.incidentName(e.Index), strings.ToUpper(m.b.Safety.Key), m.dur(e.Value)), anim.KindWarn, true
+	case sim.EvIncidentOK:
+		msg, kind, toast = c.T("msg.incident_ok", m.incidentName(e.Index), fixed(e.Value, 0)), anim.KindCrit, true
+	case sim.EvIncidentMiss:
+		msg, kind, toast = c.T("msg.incident_miss", m.incidentName(e.Index), fixed(e.Amount, 2)), anim.KindWarn, true
+	case sim.EvQuarter:
+		if e.Count == 1 {
+			msg, kind, toast = c.T("msg.quarter_beat", m.money(e.Amount), m.money(e.Value), pct(m.s.Investors.Bonus)), anim.KindCrit, true
+		} else {
+			msg, kind, toast = c.T("msg.quarter_miss", m.money(e.Amount), m.money(e.Value)), anim.KindInfo, true
+		}
+	case sim.EvAGIInvest:
+		m.setStatus(c.T("msg.agi_invest", m.money(e.Amount), m.agiName(e.Index), pct(e.Value)), false)
+		return
+	case sim.EvAGITraining:
+		msg, kind, toast = c.T("msg.agi_training", m.dur(e.Value)), anim.KindMilestone, true
+	case sim.EvAGIStage:
+		msg, kind, toast = c.T("msg.agi_stage", m.agiName(e.Index), m.agiEffectText(e.Index)), anim.KindCrit, true
+	case sim.EvAGIEnding:
+		msg, kind, toast = c.T("msg.agi_ending", m.dur(e.Value)), anim.KindLegend, true
+		if !quiet {
+			m.modal = modal{kind: modalEnding}
+		}
+	case sim.EvSILevel:
+		msg, kind, toast = c.T("msg.si_level", e.Index, m.dur(e.Value)), anim.KindLegend, true
+	case sim.EvAchievement:
+		msg, kind, toast = c.T("msg.achievement", c.T("ach."+sim.Achievements[e.Index].ID)), anim.KindCrit, true
+		if m.tab != tabStats {
+			m.newTab[tabStats] = true
+		}
 	default:
 		return
 	}
@@ -206,6 +300,23 @@ func (m *Model) rejectText(e *sim.Event) string {
 		return c.T("msg.too_large", m.num(e.Amount))
 	case sim.RejectNeedBenchmark:
 		return c.T("msg.need_benchmark", strconv.FormatFloat(e.Amount, 'f', 0, 64))
+	case sim.RejectTeamFull:
+		return c.T("msg.full")
+	case sim.RejectNeedResearch:
+		return c.T("msg.need_research")
+	case sim.RejectNoCapital:
+		return c.T("msg.no_capital", m.num(e.Amount))
+	case sim.RejectNeedRegion:
+		return c.T("msg.need_region")
+	case sim.RejectFinished:
+		return c.T("msg.agi_finished")
 	}
 	return ""
+}
+
+func (m *Model) staffName(i int) string {
+	if i < 0 || i >= len(m.s.Talent) {
+		return ""
+	}
+	return m.s.Talent[i].Name
 }

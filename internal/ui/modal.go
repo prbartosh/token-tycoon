@@ -17,6 +17,10 @@ const (
 	modalPrestige
 	modalRetire
 	modalRelease
+	modalFunding
+	modalFunded
+	modalWizard
+	modalEnding
 )
 
 type modal struct {
@@ -33,8 +37,22 @@ const modalW = 64
 func (m *Model) modalKey(k string) tea.Cmd {
 	md := m.modal
 	switch md.kind {
-	case modalRelease:
+	case modalRelease, modalFunded, modalEnding:
 		m.modal = modal{}
+		m.anim.Counter.Jump(m.anim.Counter.Target)
+		return nil
+	case modalWizard:
+		return m.wizKey(k)
+	case modalFunding:
+		switch k {
+		case "enter", "y":
+			m.modal = modal{}
+			if sim.Funding(m.s, m.b).Allowed {
+				return m.exec(sim.FundingRound())
+			}
+		case "esc", "n", "P", "shift+p":
+			m.modal = modal{}
+		}
 		return nil
 	case modalPrestige, modalRetire:
 		switch k {
@@ -65,6 +83,14 @@ func (m *Model) modalBox() string {
 		return m.retireBox()
 	case modalRelease:
 		return m.releaseBox()
+	case modalFunding:
+		return m.fundingBox()
+	case modalFunded:
+		return m.fundedBox()
+	case modalWizard:
+		return m.wizardBox()
+	case modalEnding:
+		return m.endingBox()
 	}
 	return ""
 }

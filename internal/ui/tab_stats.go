@@ -43,11 +43,27 @@ func (m *Model) statsRows(t *tabList) {
 	row("ui.stats.grants", m.cat.T("ui.stats.streak_val", s.Stats.Grants, s.Streak.Day))
 	row("ui.stats.models", strconv.Itoa(s.Stats.Models))
 	row("ui.stats.best_bench", fixed(s.Stats.BestBench, 1))
-	if !s.IsUnlocked(sim.UnlockCards) {
-		return
+	if s.IsUnlocked(sim.UnlockTalent) {
+		row("ui.stats.talent", m.cat.T("ui.stats.talent_val", s.Stats.Hired, s.Stats.Retained, s.Stats.Poached))
+	}
+	if s.IsUnlocked(sim.UnlockContracts) {
+		row("ui.stats.contracts", m.cat.T("ui.stats.contracts_val", s.Stats.ContractsDone, s.Stats.ContractsFailed, fixed(s.Market.Reputation, 0)))
+	}
+	if s.IsUnlocked(sim.UnlockLayer2) {
+		row("ui.stats.rounds", strconv.Itoa(s.Prestige.ResetsL2))
+		row("ui.stats.capital", m.num(s.Prestige.CapitalLifetime))
+		row("ui.stats.research", strconv.Itoa(s.Research.Done.Count())+"/"+strconv.Itoa(len(m.b.ResearchNodes)))
+	}
+	if s.IsUnlocked(sim.UnlockRules) {
+		row("ui.stats.rules", strconv.Itoa(s.Stats.RulesFired))
+	}
+	m.m5Stats(row)
+	if s.IsUnlocked(sim.UnlockCards) {
+		t.blank()
+		m.collectionRows(t)
 	}
 	t.blank()
-	m.collectionRows(t)
+	m.achievementRows(t)
 }
 
 func (m *Model) rarityPaint(r int) theme.Paint {

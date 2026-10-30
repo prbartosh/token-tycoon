@@ -309,6 +309,25 @@ mw = 121.5
 flops_per_rack = 1e19
 unlock_lifetime = 1e29
 
+# Generations 7 and 8 need the Scale research nodes scale_gpu7 / scale_gpu8 (DESIGN 5.1, 9.3).
+[[gpu_gen]]
+gen = 7
+rack_cost = 2.34e10
+compute = 1e8
+mw = 364.5
+flops_per_rack = 1e20
+unlock_lifetime = 1e40
+research = true
+
+[[gpu_gen]]
+gen = 8
+rack_cost = 1.4e11
+compute = 1e9
+mw = 1093.5
+flops_per_rack = 1e21
+unlock_lifetime = 1e40
+research = true
+
 [energy]
 grid_cost_coef = 0.08          # cost = revenue * grid_share * coef * (index / 50)
 grid_mw_cost = 1e5             # $ per MW of grid connection (cheap capacity, DESIGN 5.2)
@@ -387,23 +406,33 @@ start_benchmark = 10
 end_benchmark = 88
 price_pressure = 1.0
 
+# Regions (DESIGN 8.3). Before regions unlock the player sells to the home market only.
+# Afterwards revenue is multiplied by (share of entered regions) / (share of entry = "none"
+# regions), so the unlock itself changes nothing and every region entered adds demand.
+# entry: none | compliance (AI Act, one-time cost) | datacenter (local data center building)
+# entry_cost_minutes and enterprise_cost_minutes are minutes of the best income ever reached.
+# The Enterprise segment sells only in entered regions with enterprise compliance; elsewhere
+# its tokens sell at the Pro price.
 [[region]]
 id = "us"
 market_share = 0.4
 entry = "none"
 entry_cost_minutes = 0
+enterprise_cost_minutes = 0
 
 [[region]]
 id = "eu"
 market_share = 0.3
 entry = "compliance"
 entry_cost_minutes = 120
+enterprise_cost_minutes = 60
 
 [[region]]
 id = "asia"
 market_share = 0.3
 entry = "datacenter"
 entry_cost_minutes = 180
+enterprise_cost_minutes = 60
 
 # ---------------------------------------------------------------- training
 [training]
@@ -456,24 +485,52 @@ unlock_lifetime = 1e22         # was unlock_day = 4
 poach_window_s = 60
 poach_counter_mult = 2.0
 poach_counter_days = 3
+max_staff = 10                 # team size limit
+poach_chance_per_h = 0.25      # chance per game hour that a rival tries to poach someone (online only)
+# Personal names of hired researchers. They are not translated, so they live here.
+names = ["Ola", "Igor", "Ada", "Alan", "Grace", "Linus", "Marta", "Piotr", "Kasia", "Tomek",
+         "Ilya", "Yann", "Fei", "Andrej", "Demis", "Noam", "Oriol", "Jan", "Zofia", "Lena"]
 
 [[talent_class]]
 id = "junior"
 salary_share = 0.005
 speed = 0.05
 trait = false
+hire_minutes = 5               # recruitment fee in minutes of the best income ever reached (like SMR)
 
 [[talent_class]]
 id = "senior"
 salary_share = 0.015
 speed = 0.15
 trait = false
+hire_minutes = 20
 
 [[talent_class]]
 id = "star"
 salary_share = 0.04
 speed = 0.40
 trait = true
+hire_minutes = 60
+
+# Random trait of a star (DESIGN 8.1). speed adds to the research and training speed bonus,
+# loss_mult multiplies the excess loss of models queued while the person is on the team,
+# hype_per_h adds hype per game hour, compute_mult multiplies compute per business unit.
+[[talent_trait]]
+id = "fast"
+speed = 0.25
+
+[[talent_trait]]
+id = "perfectionist"
+speed = -0.10
+loss_mult = 0.93
+
+[[talent_trait]]
+id = "evangelist"
+hype_per_h = 0.05
+
+[[talent_trait]]
+id = "frugal"
+compute_mult = 0.95
 
 # ---------------------------------------------------------------- contracts
 [contracts]
@@ -484,6 +541,13 @@ volume_mult = [1.5, 4.0]       # * current production * duration
 reward_minutes = [20, 60]
 reputation_gain = 1
 reputation_loss = 1
+offers = 3                     # open offers on the board
+offer_every_s = 120            # a new offer appears this often while the board is not full
+offer_life_s = 900             # an offer not accepted in this time disappears
+benchmark_offset = [-15, 5]    # min benchmark = best benchmark + random offset, rounded
+min_benchmark_floor = 10
+reputation_reward_bonus = 0.05 # reward x (1 + reputation * bonus)
+reputation_max = 20
 
 # ---------------------------------------------------------------- safety
 [safety]
@@ -492,15 +556,34 @@ reputation_loss = 1
 unlock_lifetime = 1e13
 incident_every_h_base = 4
 incident_every_h_max = 48
-hype_loss = 0.3
+hype_loss = 0.3               # share of hype lost by a missed incident, times its severity
 reaction_window_s = 10
+key = "r"                     # reaction key; online only, offline nobody gets hurt
+reputation_bonus = 1          # reputation gained by reacting in time
+
+# Incident kinds (DESIGN 8.4): weight of the random pick and severity multiplier of hype_loss.
+[[safety_incident]]
+id = "jailbreak"
+weight = 40
+severity = 1.0
+
+[[safety_incident]]
+id = "hallucination"
+weight = 35
+severity = 0.8
+
+[[safety_incident]]
+id = "data_leak"
+weight = 25
+severity = 1.5
 
 # ---------------------------------------------------------------- investors
 [investors]
 unlock_lifetime = 1e29         # DESIGN 10: days 5..7
 quarter_h = 24
 target_growth = [0.5, 2.0]
-beat_bonus_capital = 0.25
+beat_bonus_capital = 0.25     # every beaten quarter adds this share to the next funding round
+growth_weight = 0.5           # valuation x (1 + growth_weight * log10(1 + 7-day revenue growth))
 
 # ---------------------------------------------------------------- prestige
 [prestige.layer1]
@@ -517,12 +600,377 @@ capital_coef = 5
 capital_log_offset = 39
 capital_exponent = 1.5
 rounds = ["pre_seed", "seed", "series_a", "series_b", "series_c", "series_d", "series_e", "series_f", "ipo"]
+valuation_mult = 10            # valuation = annual revenue * (1 + hype) * valuation_mult * growth factor
 
 [research]
 unlock_lifetime = 1e40         # spends VC capital, so it opens with the funding round
+auto_prestige_ratio = 2.0      # node auto_prestige resets layer 1 once the bonus would grow this much
+
+# Research tree (DESIGN 9.3), bought with VC capital. A node takes time_h game hours of research,
+# divided by the talent speed multiplier; one node is researched at a time.
+# branch: efficiency | scale | product | automation | safety | luck
+# requires: node ids that must be researched first (listed earlier in this file)
+# effect (value):
+#   compute_mult (x)        compute per business unit        energy_cost (x)      energy cost share
+#   max_params_mult (x)     maximum model size N             gpu_gen (gen)        GPU generation with research = true
+#   enterprise_alloc (+)    Enterprise segment cap           contract_slots (+)   active contracts
+#   contract_reward (+)     contract reward share            max_models (+)       models kept at once
+#   rule_slots (+)          policy slots                     auto_prestige (1)    automatic layer 1 prestige
+#   offline_eff (+)         offline efficiency               offline_cap_h (+)    offline cap in hours
+#   offline_rules (1)       policies also run offline        incident_mult (x)    safety incident chance, scraper incidents and fines
+#   penalty_mult (x)        missed reaction event penalty    crit_chance (+)      crit chance
+#   card_chance (+)         card drop chance                 rare_cards (x)       weight of epic and legendary cards
+#   compliance_cost (x)     cost of the EU AI Act entry and of enterprise compliance in every region
+
+[[research_node]]
+id = "eff_1"
+branch = "efficiency"
+cost = 2
+time_h = 0.5
+requires = []
+effect = "compute_mult"
+value = 0.9
+
+[[research_node]]
+id = "eff_2"
+branch = "efficiency"
+cost = 4
+time_h = 1
+requires = ["eff_1"]
+effect = "compute_mult"
+value = 0.9
+
+[[research_node]]
+id = "eff_3"
+branch = "efficiency"
+cost = 8
+time_h = 2
+requires = ["eff_2"]
+effect = "compute_mult"
+value = 0.9
+
+[[research_node]]
+id = "eff_4"
+branch = "efficiency"
+cost = 16
+time_h = 4
+requires = ["eff_3"]
+effect = "compute_mult"
+value = 0.9
+
+[[research_node]]
+id = "eff_5"
+branch = "efficiency"
+cost = 32
+time_h = 8
+requires = ["eff_4"]
+effect = "compute_mult"
+value = 0.9
+
+[[research_node]]
+id = "eff_sparsity"
+branch = "efficiency"
+cost = 10
+time_h = 2
+requires = ["eff_2"]
+effect = "energy_cost"
+value = 0.7
+
+[[research_node]]
+id = "eff_quant2"
+branch = "efficiency"
+cost = 24
+time_h = 4
+requires = ["eff_3"]
+effect = "compute_mult"
+value = 0.8
+
+[[research_node]]
+id = "scale_1"
+branch = "scale"
+cost = 3
+time_h = 1
+requires = []
+effect = "max_params_mult"
+value = 10
+
+[[research_node]]
+id = "scale_2"
+branch = "scale"
+cost = 6
+time_h = 2
+requires = ["scale_1"]
+effect = "max_params_mult"
+value = 10
+
+[[research_node]]
+id = "scale_3"
+branch = "scale"
+cost = 12
+time_h = 3
+requires = ["scale_2"]
+effect = "max_params_mult"
+value = 10
+
+[[research_node]]
+id = "scale_4"
+branch = "scale"
+cost = 24
+time_h = 5
+requires = ["scale_3"]
+effect = "max_params_mult"
+value = 10
+
+[[research_node]]
+id = "scale_5"
+branch = "scale"
+cost = 48
+time_h = 8
+requires = ["scale_4"]
+effect = "max_params_mult"
+value = 10
+
+[[research_node]]
+id = "scale_6"
+branch = "scale"
+cost = 96
+time_h = 12
+requires = ["scale_5"]
+effect = "max_params_mult"
+value = 10
+
+[[research_node]]
+id = "scale_gpu7"
+branch = "scale"
+cost = 15
+time_h = 3
+requires = ["scale_2"]
+effect = "gpu_gen"
+value = 7
+
+[[research_node]]
+id = "scale_gpu8"
+branch = "scale"
+cost = 60
+time_h = 8
+requires = ["scale_gpu7", "scale_4"]
+effect = "gpu_gen"
+value = 8
+
+[[research_node]]
+id = "prod_enterprise"
+branch = "product"
+cost = 4
+time_h = 1
+requires = []
+effect = "enterprise_alloc"
+value = 0.2
+
+[[research_node]]
+id = "prod_contracts"
+branch = "product"
+cost = 6
+time_h = 1.5
+requires = []
+effect = "contract_slots"
+value = 1
+
+[[research_node]]
+id = "prod_contract_reward"
+branch = "product"
+cost = 12
+time_h = 3
+requires = ["prod_contracts"]
+effect = "contract_reward"
+value = 0.5
+
+[[research_node]]
+id = "prod_models"
+branch = "product"
+cost = 10
+time_h = 2
+requires = ["prod_enterprise"]
+effect = "max_models"
+value = 1
+
+[[research_node]]
+id = "prod_models_2"
+branch = "product"
+cost = 40
+time_h = 6
+requires = ["prod_models"]
+effect = "max_models"
+value = 1
+
+[[research_node]]
+id = "auto_offline_1"
+branch = "automation"
+cost = 3
+time_h = 1
+requires = []
+effect = "offline_eff"
+value = 0.25
+
+[[research_node]]
+id = "auto_offline_cap"
+branch = "automation"
+cost = 6
+time_h = 2
+requires = ["auto_offline_1"]
+effect = "offline_cap_h"
+value = 16
+
+[[research_node]]
+id = "auto_offline_2"
+branch = "automation"
+cost = 15
+time_h = 4
+requires = ["auto_offline_cap"]
+effect = "offline_eff"
+value = 0.25
+
+[[research_node]]
+id = "auto_prestige"
+branch = "automation"
+cost = 8
+time_h = 2
+requires = []
+effect = "auto_prestige"
+value = 1
+
+[[research_node]]
+id = "auto_rules_1"
+branch = "automation"
+cost = 5
+time_h = 1
+requires = []
+effect = "rule_slots"
+value = 3
+
+[[research_node]]
+id = "auto_rules_2"
+branch = "automation"
+cost = 15
+time_h = 3
+requires = ["auto_rules_1"]
+effect = "rule_slots"
+value = 3
+
+[[research_node]]
+id = "auto_rules_3"
+branch = "automation"
+cost = 45
+time_h = 6
+requires = ["auto_rules_2"]
+effect = "rule_slots"
+value = 3
+
+[[research_node]]
+id = "auto_offline_rules"
+branch = "automation"
+cost = 20
+time_h = 4
+requires = ["auto_rules_1", "auto_offline_1"]
+effect = "offline_rules"
+value = 1
+
+[[research_node]]
+id = "safe_1"
+branch = "safety"
+cost = 3
+time_h = 1
+requires = []
+effect = "incident_mult"
+value = 0.5
+
+[[research_node]]
+id = "safe_2"
+branch = "safety"
+cost = 12
+time_h = 3
+requires = ["safe_1"]
+effect = "incident_mult"
+value = 0.5
+
+[[research_node]]
+id = "safe_audit"
+branch = "safety"
+cost = 8
+time_h = 2
+requires = ["safe_1"]
+effect = "penalty_mult"
+value = 0.5
+
+[[research_node]]
+id = "safe_3"
+branch = "safety"
+cost = 30
+time_h = 6
+requires = ["safe_2"]
+effect = "incident_mult"
+value = 0.5
+
+[[research_node]]
+id = "safe_4"
+branch = "safety"
+cost = 60
+time_h = 10
+requires = ["safe_3"]
+effect = "incident_mult"
+value = 0.5
+
+[[research_node]]
+id = "safe_eu"
+branch = "safety"
+cost = 10
+time_h = 2
+requires = ["safe_1"]
+effect = "compliance_cost"
+value = 0.5
+
+[[research_node]]
+id = "luck_crit_1"
+branch = "luck"
+cost = 4
+time_h = 1
+requires = []
+effect = "crit_chance"
+value = 0.01
+
+[[research_node]]
+id = "luck_crit_2"
+branch = "luck"
+cost = 16
+time_h = 4
+requires = ["luck_crit_1"]
+effect = "crit_chance"
+value = 0.01
+
+[[research_node]]
+id = "luck_cards"
+branch = "luck"
+cost = 6
+time_h = 1.5
+requires = []
+effect = "card_chance"
+value = 0.5
+
+[[research_node]]
+id = "luck_rare"
+branch = "luck"
+cost = 20
+time_h = 4
+requires = ["luck_cards"]
+effect = "rare_cards"
+value = 2
 
 [agi]
 unlock_lifetime = 1e94         # DESIGN 10: days 18..30
+final_training_h = 24          # the final_training stage runs one training this long (game clock)
+final_benchmark = 100          # benchmark of the model it releases
+si_every_oom = 10              # after the ending: a Superintelligence level every 10 orders of magnitude of lifetime revenue
+si_bonus_per_level = 1.0       # revenue x (1 + level * bonus)
+si_max_levels = 16
 
 [[agi_stage]]
 id = "alignment"

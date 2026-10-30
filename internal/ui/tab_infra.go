@@ -47,7 +47,11 @@ func (m *Model) infraRows(t *tabList) {
 		gg := &m.b.GPUGens[g]
 		name := m.cell(c.T("infra.gen", gen), colLabel)
 		if gen > s.Infra.GPUGen {
-			t.item(actRack, gen, th.Dim.Render(name+c.T("ui.infra.rack_locked", m.money(gg.UnlockLifetime), m.etaLifetime(gg.UnlockLifetime))))
+			lock := c.T("ui.infra.rack_locked", m.money(gg.UnlockLifetime), m.etaLifetime(gg.UnlockLifetime))
+			if gg.Research && s.Lifetime.Total >= gg.UnlockLifetime {
+				lock = c.T("ui.infra.rack_research")
+			}
+			t.item(actRack, gen, th.Dim.Render(name+lock))
 			continue
 		}
 		q, cost := m.qtyRacks(gen)

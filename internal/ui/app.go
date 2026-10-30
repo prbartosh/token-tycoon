@@ -132,6 +132,8 @@ type Model struct {
 	draft    trainDraft
 	modal    modal
 	retiring string
+	wiz      wizard
+	ruleLog  []string
 
 	rows   []row
 	lines  []string
@@ -196,7 +198,7 @@ func (m *Model) desired() time.Duration {
 	switch {
 	case !m.focused:
 		return fpsInterval(e.FPSBackground)
-	case m.anim.Active() || m.revealing() || m.away.open && m.anim.Counter.Moving():
+	case m.anim.Active() || m.revealing() || (m.away.open || m.modal.kind == modalFunded) && m.anim.Counter.Moving():
 		return fpsInterval(e.FPSAnimation)
 	}
 	return fpsInterval(e.FPSNormal)

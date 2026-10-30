@@ -3,7 +3,9 @@
 // and random strategies, CSV export and an acceptance report. Bots buy
 // businesses and infrastructure, prestige by the preview, react to events with
 // a human-like probability and delay, claim the daily grant, set market
-// segments, buy data and train models.
+// segments, buy data and train models, hire talent, take enterprise contracts,
+// raise funding rounds, research the tree, set up policies, enter regions,
+// respond to safety incidents and fund the race to AGI.
 package simulate
 
 import (
@@ -51,6 +53,7 @@ type Sample struct {
 	T          float64
 	Money      float64
 	IncomePerS float64
+	TokensPerS float64
 	Lifetime   float64
 	Run        float64
 	Params     float64
@@ -86,6 +89,12 @@ type PrestigeAt struct {
 	Gain    float64
 	RunS    float64
 	ReturnS float64
+}
+
+type RoundAt struct {
+	T         float64
+	Capital   float64
+	Valuation float64
 }
 
 type ModelAt struct {
@@ -132,13 +141,23 @@ type Result struct {
 	Models        []ModelAt
 	TrainS        float64
 	TrainShareS   float64
+	Rounds        []RoundAt
+	Layer2T       float64
+	Counters      int
+	RegionsT      float64
+	AGIT          float64
+	AGIStages     []float64
+	EndingT       float64
+	Responses     int
 }
 
 var grantEpoch = time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
 
 type pendingReact struct {
-	at  float64
-	key string
+	at       float64
+	key      string
+	counter  bool
+	incident bool
 }
 
 type bot struct {
@@ -159,6 +178,7 @@ type bot struct {
 	grantDay    int
 	nextMkt     float64
 	nextTrain   float64
+	nextM4      float64
 }
 
 func Run(b *balance.Balance, cfg Config) (*Result, error) {
@@ -175,7 +195,7 @@ func Run(b *balance.Balance, cfg Config) (*Result, error) {
 		cfg:      cfg,
 		b:        b,
 		s:        sim.NewState(b, cfg.Seed),
-		res:      &Result{Config: cfg, FirstManagerT: -1, InfraT: -1, PrestigeT: -1, MarketT: -1, TrainingT: -1},
+		res:      &Result{Config: cfg, FirstManagerT: -1, InfraT: -1, PrestigeT: -1, MarketT: -1, TrainingT: -1, Layer2T: -1, RegionsT: -1, AGIT: -1, EndingT: -1},
 		evs:      make([]sim.Event, 0, 256),
 		cmds:     make([]sim.Command, 0, 16),
 		rnd:      rand.New(rand.NewPCG(cfg.Seed, 0xB07)),
@@ -274,7 +294,16 @@ func (bt *bot) reactions() {
 	keep := bt.reacts[:0]
 	for _, r := range bt.reacts {
 		if bt.s.Clock >= r.at {
-			bt.cmds = append(bt.cmds, sim.React(r.key))
+			switch {
+			case r.incident:
+				bt.cmds = append(bt.cmds, sim.Respond(r.key))
+				bt.res.Responses++
+			case r.counter:
+				bt.cmds = append(bt.cmds, sim.CounterOffer())
+				bt.res.Counters++
+			default:
+				bt.cmds = append(bt.cmds, sim.React(r.key))
+			}
 			continue
 		}
 		keep = append(keep, r)
@@ -330,7 +359,21 @@ func (bt *bot) observe(evs []sim.Event, t float64) {
 				bt.res.MarketT = t
 			case sim.UnlockTraining:
 				bt.res.TrainingT = t
+			case sim.UnlockLayer2:
+				bt.res.Layer2T = t
+			case sim.UnlockRegions:
+				bt.res.RegionsT = t
+			case sim.UnlockAGI:
+				bt.res.AGIT = t
 			}
+		case sim.EvIncident:
+			bt.incidentReaction(t)
+		case sim.EvAGIStage:
+			bt.res.AGIStages = append(bt.res.AGIStages, t)
+		case sim.EvAGIEnding:
+			bt.res.EndingT = t
+		case sim.EvPoach:
+			bt.poachReaction(e)
 		case sim.EvTrainQueued:
 			bt.res.Models = append(bt.res.Models, ModelAt{T: -1, Params: e.Value, Tokens: e.Amount})
 		case sim.EvModelRelease:
@@ -375,7 +418,7 @@ func (bt *bot) sample(force bool) {
 	bt.nextSmp = t + every
 	s := &bt.s
 	sm := Sample{
-		T: t, Money: s.Money, IncomePerS: s.Derived.IncomePerSec, Lifetime: s.Lifetime.Total,
+		T: t, Money: s.Money, IncomePerS: s.Derived.IncomePerSec, TokensPerS: s.Derived.TokensPerSec, Lifetime: s.Lifetime.Total,
 		Run: s.Lifetime.Run, Params: s.Prestige.Params, Capital: s.Prestige.Capital,
 		Unlocks: s.Unlocks.Count(), Upgrades: s.Upgrades.Count(), Combo: s.Combo.Mult,
 		Online:   bt.session != nil || bt.cfg.Strategy != Passive,

@@ -52,7 +52,7 @@ type Theme struct {
 	FlashCrit, FlashWarn, Selected   Paint
 	ToastInfo, ToastGold, ToastMagic Paint
 	ToastWarn, Panel, Modal          Paint
-	Track                            Paint
+	Track, Capital                   Paint
 
 	Tier     [Tiers]Paint
 	Flow     [Tiers][FlowSteps]Paint
@@ -120,6 +120,7 @@ func New(c balance.Colors, p colorprofile.Profile) *Theme {
 	t.Gold = paintOf(fg(base, gold).Bold(true))
 	t.Magenta = paintOf(fg(base, mag).Bold(true))
 	t.Params = paintOf(fg(base, params))
+	t.Capital = paintOf(fg(base, pl.c(c.Capital)))
 	t.Rare = paintOf(fg(base, rare))
 	t.Epic = paintOf(fg(base, pl.c(c.Epic)).Bold(true))
 	t.Border = paintOf(fg(base, dim))

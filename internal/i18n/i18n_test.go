@@ -74,6 +74,24 @@ func TestBalanceIDsTranslated(t *testing.T) {
 	for _, x := range b.AGIStages {
 		keys = append(keys, AGIKey(x.ID))
 	}
+	for _, x := range b.TalentTraits {
+		keys = append(keys, "talent.trait."+x.ID)
+	}
+	for _, x := range balance.Branches {
+		keys = append(keys, "research.branch."+x)
+	}
+	for _, x := range b.ResearchNodes {
+		keys = append(keys, "research."+x.ID, "researchfx."+x.Effect)
+	}
+	for _, x := range b.Regions {
+		keys = append(keys, "region.entry."+x.Entry)
+	}
+	for _, x := range b.Incidents {
+		keys = append(keys, "incident."+x.ID)
+	}
+	for _, x := range b.AGIStages {
+		keys = append(keys, "agi.fx."+x.Effect)
+	}
 	c := New(PL)
 	for _, k := range keys {
 		if !c.Has(k) {

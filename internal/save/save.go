@@ -20,7 +20,7 @@ import (
 	"token-tycoon/internal/sim"
 )
 
-const CurrentVersion = 4
+const CurrentVersion = 6
 
 const FileName = "save.json"
 
@@ -43,7 +43,14 @@ type file struct {
 	Businesses []sim.Business `json:"businesses"`
 	Upgrades   []string       `json:"upgrades"`
 	Unlocks    []string       `json:"unlocks"`
+	Research   researchFile   `json:"research"`
 	*sim.State
+}
+
+type researchFile struct {
+	Done     []string `json:"done"`
+	Active   string   `json:"active"`
+	Progress float64  `json:"progress"`
 }
 
 type Options struct {
@@ -68,6 +75,16 @@ func Marshal(s *sim.State, b *balance.Balance, savedAt time.Time, indent bool) (
 		if s.IsUnlocked(u) {
 			f.Unlocks = append(f.Unlocks, u.Name())
 		}
+	}
+	f.Research.Done = []string{}
+	for i, n := range b.ResearchNodes {
+		if s.Research.Done.Has(i) {
+			f.Research.Done = append(f.Research.Done, n.ID)
+		}
+	}
+	if a := s.Research.Active; a >= 0 && a < len(b.ResearchNodes) {
+		f.Research.Active = b.ResearchNodes[a].ID
+		f.Research.Progress = s.Research.Progress
 	}
 	if indent {
 		return json.MarshalIndent(f, "", "  ")
@@ -116,6 +133,15 @@ func Unmarshal(data []byte, b *balance.Balance) (*sim.State, time.Time, error) {
 			return nil, time.Time{}, fmt.Errorf("save: unknown unlock %q", name)
 		}
 		s.Unlocks.Set(int(u))
+	}
+	s.Research.Active = -1
+	for _, id := range f.Research.Done {
+		if i, ok := b.NodeIndex(id); ok {
+			s.Research.Done.Set(i)
+		}
+	}
+	if i, ok := b.NodeIndex(f.Research.Active); ok {
+		s.Research.Active, s.Research.Progress = i, f.Research.Progress
 	}
 	if err := check(s); err != nil {
 		return nil, time.Time{}, err

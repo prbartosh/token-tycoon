@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	newsCount  = 12
 	labelW     = 11
 	valueW     = 9
 	ownedW     = 5
@@ -169,6 +168,10 @@ func (m *Model) header(w int) string {
 	}
 	if m.s.IsUnlocked(sim.UnlockMarket) {
 		right.WriteString(th.Magenta.Render(m.cat.T("ui.header.hype", fixed(1+d.Market.Hype, 1)+"x")))
+		right.WriteString("  ")
+	}
+	if m.s.IsUnlocked(sim.UnlockLayer2) {
+		right.WriteString(th.Capital.Render(m.cat.T("ui.header.vc", m.num(m.s.Prestige.Capital))))
 		right.WriteString("  ")
 	}
 	if m.debug {
@@ -574,6 +577,12 @@ func (m *Model) newsText() (string, bool) {
 	if ev >= 0 && m.b.Event[ev].Effect == balance.EventReaction {
 		return m.eventBanner(ev, left), true
 	}
+	if txt, ok := m.incidentBanner(); ok {
+		return txt, true
+	}
+	if m.s.Poach.Active {
+		return m.cat.T("ui.poach.banner", m.staffName(m.s.Poach.Index), m.dur(sim.PoachLeft(m.s))), true
+	}
 	if m.status != "" && m.now().Sub(m.statusAt) < statusFor {
 		return m.status, m.statusWarn
 	}
@@ -586,7 +595,7 @@ func (m *Model) newsText() (string, bool) {
 	if g := m.grant(); g.Claimable && g.Amount > 0 {
 		return m.cat.T("ui.hint.grant", g.Day, m.money(g.Amount)), false
 	}
-	return m.cat.T("ui.news." + strconv.Itoa(m.newsIdx%newsCount+1)), false
+	return m.headline(), false
 }
 
 func (m *Model) eventBanner(ev int, left float64) string {
@@ -617,13 +626,19 @@ func (m *Model) keyItems() []string {
 		return append(items, c.T("ui.key.continue"), c.T("key.quit"))
 	case m.help:
 		return append(items, c.T("ui.key.close"), c.T("key.quit"))
-	case m.modal.kind == modalRelease:
+	case m.modal.kind == modalRelease || m.modal.kind == modalEnding || m.modal.kind == modalFunded:
 		return append(items, c.T("ui.key.continue"), c.T("key.quit"))
 	case m.modal.kind != modalNone:
 		return append(items, c.T("ui.key.confirm"), c.T("ui.key.cancel"), c.T("key.quit"))
 	}
 	if key := m.reactionKey(); key != "" {
 		items = append(items, c.T("ui.key.react", strings.ToUpper(key)))
+	}
+	if m.s.Poach.Active {
+		items = append(items, c.T("ui.key.counter"))
+	}
+	if i, left := sim.ActiveIncident(m.s, m.b); i >= 0 && left > 0 {
+		items = append(items, c.T("ui.key.respond", strings.ToUpper(m.b.Safety.Key)))
 	}
 	if m.tab == tabBusinesses {
 		switch m.sel.kind {
@@ -657,6 +672,9 @@ func (m *Model) keyItems() []string {
 	}
 	if m.s.IsUnlocked(sim.UnlockPrestige1) {
 		items = append(items, c.T("key.prestige"))
+	}
+	if m.s.IsUnlocked(sim.UnlockLayer2) {
+		items = append(items, c.T("ui.key.funding"))
 	}
 	items = append(items, c.T("key.select"))
 	return append(items, c.T("key.tabs"), c.T("key.help"), c.T("key.quit"))

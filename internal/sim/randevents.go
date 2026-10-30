@@ -70,7 +70,7 @@ func tickEvents(s *State, b *balance.Balance, dt float64, out []Event, md mode) 
 			endEvent(s, b, now)
 			changed = true
 		case now >= re.EndsAtS && ev.Effect == balance.EventReaction:
-			loss := math.Min(s.Money, MinutesOfIncome(s, ev.PenaltyMinutes))
+			loss := math.Min(s.Money, MinutesOfIncome(s, ev.PenaltyMinutes)*s.ResMods.PenaltyMult)
 			s.Money -= loss
 			s.Stats.EventsMissed++
 			endEvent(s, b, re.EndsAtS)

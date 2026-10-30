@@ -113,6 +113,12 @@ func extraUnlock(t int, u sim.Unlock) bool {
 		return u == sim.UnlockData
 	case tabStats:
 		return u == sim.UnlockCards
+	case tabModels:
+		return u == sim.UnlockTalent
+	case tabMarket:
+		return u == sim.UnlockContracts || u == sim.UnlockRegions || u == sim.UnlockInvestors
+	case tabResearch:
+		return u == sim.UnlockLayer2 || u == sim.UnlockAGI
 	}
 	return false
 }
@@ -141,7 +147,8 @@ func (m *Model) rejected(e *sim.Event) {
 	case sim.RejectCannotAfford:
 		msg = m.cat.T("msg.cannot_afford", m.money(e.Amount))
 	case sim.RejectLocked, sim.RejectNoEvent, sim.RejectAlreadyClaimed, sim.RejectBadDate,
-		sim.RejectNoData, sim.RejectQueueFull, sim.RejectTooLarge, sim.RejectNeedBenchmark:
+		sim.RejectNoData, sim.RejectQueueFull, sim.RejectTooLarge, sim.RejectNeedBenchmark,
+		sim.RejectTeamFull, sim.RejectNeedResearch, sim.RejectNoCapital, sim.RejectNeedRegion, sim.RejectFinished:
 	case sim.RejectNothingToUndo:
 		msg = m.cat.T("msg.undo_expired", format.Duration(m.b.Engine.UndoWindowS))
 	case sim.RejectNotOwned:

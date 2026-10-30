@@ -1,6 +1,7 @@
 package save
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"token-tycoon/internal/balance"
+	"token-tycoon/internal/rng"
 	"token-tycoon/internal/sim"
 )
 
@@ -320,6 +322,47 @@ func TestRoundTripAllSystemsContinues(t *testing.T) {
 	if s.Prestige.ResetsL1 != 1 || len(s.Training.Models) == 0 || s.Streak.Day != 2 || s.Infra.Energy.PPA.MW > 0 {
 		t.Fatalf("setup: resets %d models %d streak %+v ppa %+v", s.Prestige.ResetsL1, len(s.Training.Models), s.Streak, s.Infra.Energy.PPA)
 	}
+	s.Lifetime.Total, s.Lifetime.Layer2Total = 1e45, 1e45
+	evs = sim.Step(&s, b, 0.1, nil, evs[:0])
+	evs = sim.Step(&s, b, 0, []sim.Command{sim.FundingRound()}, evs[:0])
+	s.Money = 1e40
+	for i := range s.Businesses {
+		s.Businesses[i].Owned, s.Businesses[i].Manager = 100, true
+	}
+	s.Prestige.Capital += 50
+	eff1, _ := b.NodeIndex("eff_1")
+	rule := sim.Rule{If: [sim.MaxConds]sim.Cond{{Metric: "money_x_best", Op: ">", Value: 5}, {Metric: "gpu_util", Op: "<", Value: 0.9}},
+		Then: sim.Action{Kind: "buy_best", Qty: 1}, Enabled: true}
+	evs = sim.Step(&s, b, 0, []sim.Command{sim.Hire(0), sim.Hire(2), sim.Research(eff1), sim.AddRule(rule)}, evs[:0])
+	for range 2000 {
+		evs = sim.Step(&s, b, 1, nil, evs[:0])
+	}
+	scale1, _ := b.NodeIndex("scale_1")
+	evs = sim.Step(&s, b, 0, []sim.Command{sim.Research(scale1)}, evs[:0])
+	if len(s.Offers) > 0 {
+		s.Offers[0].MinBenchmark = 0
+		evs = sim.Step(&s, b, 0, []sim.Command{sim.AcceptContract(0)}, evs[:0])
+	}
+	s.Poach = sim.Poach{Active: true, Index: 1, EndsAtS: s.Clock + 30}
+	s.Talent[0].RaiseUntilS = s.Clock + 1000
+	if s.Prestige.ResetsL2 != 1 || len(s.Talent) != 2 || len(s.Contracts) != 1 || s.Research.Active < 0 || !s.Research.Done.Has(eff1) || len(s.Rules) != 1 || s.Stats.RulesFired == 0 {
+		t.Fatalf("M4 setup: l2 %d talent %d contracts %d research %+v rules %+v", s.Prestige.ResetsL2, len(s.Talent), len(s.Contracts), s.Research, s.Rules)
+	}
+	s.Lifetime.Total = 1e95
+	evs = sim.Step(&s, b, 0.1, nil, evs[:0])
+	s.Money = 1e100
+	eu, _ := b.RegionIndex("eu")
+	evs = sim.Step(&s, b, 0, []sim.Command{sim.EnterRegion(eu), sim.BuyCompliance(eu)}, evs[:0])
+	s.Money = b.AGIStages[0].Cost / 3
+	evs = sim.Step(&s, b, 0, []sim.Command{sim.AGIInvest()}, evs[:0])
+	for range 200 {
+		evs = sim.Step(&s, b, 1, nil, evs[:0])
+	}
+	s.Incident = sim.Incident{ID: "data_leak", EndsAtS: s.Clock + 5}
+	s.Investors.Bonus = 0.5
+	if !s.IsUnlocked(sim.UnlockAGI) || sim.RegionsCompliant(&s, b) != 2 || !(s.AGI.Invested > 0) || !(s.Investors.QuarterEndS > 0) || len(s.Achievements) == 0 {
+		t.Fatalf("M5 setup: regions %v agi %+v investors %+v achievements %v", s.Market, s.AGI, s.Investors, s.Achievements)
+	}
 	data, err := Marshal(&s, b, at, false)
 	if err != nil {
 		t.Fatal(err)
@@ -341,7 +384,76 @@ func TestRoundTripAllSystemsContinues(t *testing.T) {
 		ea = sim.Step(&a, b, 0.5, nil, ea[:0])
 		ec = sim.Step(&c, b, 0.5, nil, ec[:0])
 	}
-	if a.Money != c.Money || a.RNG != c.RNG || a.Market.Hype != c.Market.Hype || len(a.Training.Models) != len(c.Training.Models) {
+	if a.Money != c.Money || a.RNG != c.RNG || a.Market.Hype != c.Market.Hype || len(a.Training.Models) != len(c.Training.Models) ||
+		a.Stats != c.Stats || a.Investors != c.Investors || a.AGI != c.AGI || !reflect.DeepEqual(a.Achievements, c.Achievements) {
 		t.Fatalf("restored game diverged: %v vs %v", a.Money, c.Money)
+	}
+}
+
+func TestMigrateV4(t *testing.T) {
+	b := balance.Default()
+	v4 := `{"version":4,"saved_at":"2026-10-30T10:00:00Z","seed":7,"clock_s":9000,"money":10,
+"lifetime":{"run":2e23,"total":2e23,"layer2_total":2e23},
+"businesses":[{"id":"api_wrapper","owned":40,"manager":true}],
+"upgrades":[],"unlocks":["infra","market","talent","contracts"],
+"talent":[{"class":"star","name":"Ada","trait":"fast"}],
+"contracts":[{"id":"c-0007","volume":1e20,"delivered":1e19,"min_benchmark":40,"deadline_s":9500,"reward_minutes":30}],
+"research":["eff_1","bogus"],
+"rules":[{"if":[["money",">","10x_cost:best_roi"]],"then":["buy","best_roi",10],"enabled":true},{"if":[["hype","<","3"]],"then":["noop"],"enabled":true}],
+"prestige":{"params":0,"params_lifetime":0,"capital":3,"version_index":0,"round_index":0,"resets_l1":0,"resets_l2":0,"run_start_s":0}}`
+	s, _, err := Unmarshal([]byte(v4), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eff1, _ := b.NodeIndex("eff_1")
+	if !s.Research.Done.Has(eff1) || s.Research.Done.Count() != 1 || s.Research.Active != -1 {
+		t.Fatalf("research: %+v", s.Research)
+	}
+	if len(s.Contracts) != 1 || s.Contracts[0].ID != 7 || s.ContractSeq != 7 {
+		t.Fatalf("contracts: %+v", s.Contracts)
+	}
+	if len(s.Rules) != 1 || s.Rules[0].If[0].Metric != "money_x_best" || s.Rules[0].Then.Qty != 10 || !s.Rules[0].Enabled {
+		t.Fatalf("rules: %+v", s.Rules)
+	}
+	if s.Talent[0].Trait != "fast" || !(s.Derived.Talent.Mult > 1.6) || s.ResMods.ComputeMult != 0.9 {
+		t.Fatalf("talent/research effects: %+v %+v", s.Derived.Talent, s.ResMods)
+	}
+}
+
+func TestMigrateV5(t *testing.T) {
+	b := balance.Default()
+	s := sim.NewState(b, 77)
+	data, err := Marshal(&s, b, at, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["version"] = 5
+	delete(raw["rng"].(map[string]any), "safety")
+	for _, k := range []string{"incident", "investors"} {
+		delete(raw, k)
+	}
+	delete(raw["market"].(map[string]any), "compliance")
+	raw["achievements"] = []any{"first_manager", "first_crit", "gone"}
+	raw["agi"] = map[string]any{"stage": 0, "invested": 0}
+	old, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := Unmarshal(old, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RNG.Safety != rng.NewStream(77, rng.KeySafety) {
+		t.Fatal("safety stream not derived from the seed")
+	}
+	if !reflect.DeepEqual(got.Achievements, []string{"first_manager", "first_crit"}) || got.Achieved.Count() != 2 {
+		t.Fatalf("achievements: %v", got.Achievements)
+	}
+	if got.Market.Compliance == nil || got.Incident.ID != "" || got.Investors.QuarterEndS != 0 {
+		t.Fatalf("new fields: %+v %+v", got.Market, got.Investors)
 	}
 }

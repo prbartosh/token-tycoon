@@ -153,3 +153,37 @@ unlock_lifetime = 0
 | `internal/i18n` | katalogi PL i EN |
 | `internal/format` | liczby (K, M, B, T, aa...) i czasy |
 | `internal/simulate` | boty, raport, CSV |
+
+## Wydanie i strona
+
+Repozytoria:
+
+| Repo | Widoczność | Zawartość |
+|---|---|---|
+| `prbartosh/token-tycoon` | prywatne | kod, `site/`, workflowy |
+| `prbartosh/token-tycoon-releases` | publiczne | binarki (Releases), kopia strony, GitHub Pages |
+| `prbartosh/homebrew-tap` | publiczne | formuła `token-tycoon.rb` |
+
+Wydanie nowej wersji (z `main`, po zielonych testach):
+
+```bash
+git tag -a v0.1.1 -m v0.1.1 && git push origin v0.1.1
+```
+
+Tag `v*` uruchamia `.github/workflows/release.yml` (GoReleaser, `.goreleaser.yaml`):
+binarki darwin/linux (amd64, arm64) i windows (amd64) jako `token-tycoon_<os>_<arch>.tar.gz` / `.zip`
+trafiają do Releases w `token-tycoon-releases`, formuła brew do `homebrew-tap`. Wersja wchodzi przez ldflags (`token-tycoon --version`).
+
+Strona: edytować tylko `site/index.html` w tym repo. Push na `main` ze zmianą w `site/` uruchamia
+`.github/workflows/site.yml`, który kopiuje `site/` do `token-tycoon-releases`, a tam `pages.yml` publikuje
+https://prbartosh.github.io/token-tycoon-releases/. Kopii strony w repo releases nie zmieniać ręcznie.
+Adresy pobierania i komenda brew są w obiekcie `CONFIG` na początku skryptu strony.
+
+Secret `RELEASE_TOKEN` (fine-grained PAT, Contents: Read and write dla `token-tycoon-releases` i `homebrew-tap`)
+w ustawieniach Actions tego repo. Po wygaśnięciu tokena release i synchronizacja strony przestaną działać.
+
+Instalacja dla testerów:
+
+```bash
+brew install prbartosh/tap/token-tycoon
+```

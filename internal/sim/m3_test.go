@@ -211,17 +211,18 @@ func TestTrainingLifecycle(t *testing.T) {
 	}
 }
 
-func TestMaxModelsRetiresWorst(t *testing.T) {
+func TestMaxModelsArchivesWorst(t *testing.T) {
 	b := bal(t)
 	s := m3State(t, b)
 	s.Training.Models = []Model{{Name: "a", Benchmark: 30}, {Name: "b", Benchmark: 20}, {Name: "c", Benchmark: 40}}
 	s.Training.Released = 3
-	s.Training.Queue = []TrainJob{{Params: 1e6, Tokens: 1e6, ClusterShare: 1, Progress: 0.999999, ArchMult: 1}}
+	s.Training.Queue = []TrainJob{{Params: 1e9, Tokens: 2e10, ClusterShare: 1, Progress: 0.999999, ArchMult: 1}}
 	Recompute(&s, b)
 	evs := Step(&s, b, 1, nil, nil)
-	r, ok := hasEvent(evs, EvModelRetired)
-	if !ok || r.Index != 1 || len(s.Training.Models) != 3 || s.Training.Models[2].Name != "TT-4" {
-		t.Fatalf("retire worst: %+v %+v", evs, s.Training.Models)
+	r, ok := hasEvent(evs, EvModelArchived)
+	if !ok || r.Count != ArchivedDisplaced || len(s.Training.Models) != 3 || s.Training.Models[2].Name != "TT-4" ||
+		len(s.Training.Archive) != 1 || s.Training.Archive[0].Name != "b" {
+		t.Fatalf("archive worst: %+v %+v", evs, s.Training.Models)
 	}
 }
 

@@ -163,9 +163,7 @@ func normalizeTraining(s *State, b *balance.Balance) {
 		}
 		j.Progress = math.Min(1, math.Max(0, j.Progress))
 	}
-	if lim := MaxModels(s, b); len(tr.Models) > lim {
-		tr.Models = tr.Models[len(tr.Models)-lim:]
-	}
+	normalizeArchive(s, b)
 }
 
 func EstimateTraining(s *State, b *balance.Balance, n, d, share float64) TrainEstimate {
@@ -237,7 +235,7 @@ func train(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 	tr.SynthTokens -= syn
 	tr.Queue = append(tr.Queue, TrainJob{
 		Params: n, Tokens: d, ClusterShare: share, Arch: archList(s, b),
-		ArchMult: ArchMult(s, b), Synthetic: syn / d,
+		ArchMult: ArchMult(s, b), Synthetic: syn / d, Manual: c.On,
 	})
 	Recompute(s, b)
 	return append(out, Event{Kind: EvTrainQueued, Business: -1, Index: len(tr.Queue) - 1, Value: n, Amount: d})
@@ -350,7 +348,7 @@ func tickData(s *State, b *balance.Balance, dt float64, out []Event, md mode) []
 	return out
 }
 
-func tickTraining(s *State, b *balance.Balance, dt float64, out []Event) []Event {
+func tickTraining(s *State, b *balance.Balance, dt float64, out []Event, md mode) []Event {
 	tr := &s.Training
 	if !s.IsUnlocked(UnlockTraining) || len(tr.Queue) == 0 {
 		return out
@@ -364,7 +362,7 @@ func tickTraining(s *State, b *balance.Balance, dt float64, out []Event) []Event
 	if j.Progress < 1 {
 		return out
 	}
-	return release(s, b, out)
+	return release(s, b, out, j.Manual && !md.offline)
 }
 
 func synthMult(s *State, b *balance.Balance, frac float64) float64 {
@@ -374,34 +372,32 @@ func synthMult(s *State, b *balance.Balance, frac float64) float64 {
 	return training.SyntheticMult(frac, &b.Training)
 }
 
-func release(s *State, b *balance.Balance, out []Event) []Event {
+func release(s *State, b *balance.Balance, out []Event, ask bool) []Event {
 	tr := &s.Training
 	j := tr.Queue[0]
 	tr.Queue = append(tr.Queue[:0], tr.Queue[1:]...)
 	bench := training.Benchmark(j.Params, j.Tokens, j.ArchMult*synthMult(s, b, j.Synthetic), &b.Training)
-	return addModel(s, b, Model{Params: j.Params, Tokens: j.Tokens, Benchmark: bench, ReleasedS: s.Clock, Synthetic: j.Synthetic}, out)
+	return placeModel(s, b, Model{Params: j.Params, Tokens: j.Tokens, Benchmark: bench, ReleasedS: s.Clock, Synthetic: j.Synthetic}, ask, out)
 }
 
 func addModel(s *State, b *balance.Balance, md Model, out []Event) []Event {
+	return placeModel(s, b, md, false, out)
+}
+
+func finishModel(s *State, md *Model) {
 	tr := &s.Training
-	bench := md.Benchmark
-	if len(tr.Models) >= MaxModels(s, b) {
-		worst := 0
-		for k := range tr.Models {
-			if tr.Models[k].Benchmark < tr.Models[worst].Benchmark {
-				worst = k
-			}
-		}
-		tr.Models = append(tr.Models[:worst], tr.Models[worst+1:]...)
-		out = append(out, Event{Kind: EvModelRetired, Business: -1, Index: worst})
-	}
 	tr.Released++
 	if md.Name == "" {
 		md.Name = "TT-" + strconv.Itoa(tr.Released)
 	}
-	tr.Models = append(tr.Models, md)
 	s.Stats.Models++
-	s.Stats.BestBench = math.Max(s.Stats.BestBench, bench)
+	s.Stats.BestBench = math.Max(s.Stats.BestBench, md.Benchmark)
+}
+
+func enterModel(s *State, b *balance.Balance, md Model, out []Event) []Event {
+	tr := &s.Training
+	tr.Models = append(tr.Models, md)
+	bench := md.Benchmark
 	mv := &s.Derived.Market
 	rivals := mv.RivalBench[:mv.Rivals]
 	share := market.Share(bench, rivals, b.Market.ShareExponent)

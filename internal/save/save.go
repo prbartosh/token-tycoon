@@ -20,7 +20,7 @@ import (
 	"token-tycoon/internal/sim"
 )
 
-const CurrentVersion = 6
+const CurrentVersion = 7
 
 const FileName = "save.json"
 

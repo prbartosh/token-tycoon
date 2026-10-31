@@ -115,7 +115,7 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 	out = tickSafety(s, b, dt, out, md)
 	out = tickResearch(s, b, dt, out)
 	out = tickData(s, b, dt, out, md)
-	out = tickTraining(s, b, dt, out)
+	out = tickTraining(s, b, dt, out, md)
 	out = tickMarket(s, b, s.Clock, dt, out)
 	from := s.Clock
 	s.Clock += dt
@@ -241,6 +241,8 @@ func apply(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 		return respond(s, b, c, out)
 	case CmdAGIInvest:
 		return agiInvest(s, b, c, out)
+	case CmdResolveRelease, CmdSwapArchived, CmdDeleteArchived:
+		return applyArchive(s, b, c, out)
 	}
 	return reject(out, c, RejectInvalid, 0)
 }

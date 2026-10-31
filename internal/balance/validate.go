@@ -677,6 +677,28 @@ func (b *Balance) Validate() error {
 		v.add("ui.colors.tier_gradient", "need %d colours, got %d", MaxBusinesses, len(b.UI.Colors.TierGradient))
 	}
 
+	pc := b.Pacing
+	v.positive("pacing.greedy_session_min", pc.GreedySessionMin)
+	if pc.GreedySessionsDay < 1 || pc.GreedySessionMin*float64(pc.GreedySessionsDay) > 1440 {
+		v.add("pacing.greedy_sessions_per_day", "must be >= 1 and fit in a day with greedy_session_min")
+	}
+	v.positive("pacing.flat_max_s", pc.FlatMaxS)
+	v.positive("pacing.session_new_s", pc.SessionNewS)
+	v.nonNeg("pacing.income_tolerance_oom", pc.IncomeToleranceOOM)
+	for name, r := range map[string][]float64{
+		"first_manager_s": pc.FirstManagerS, "infra_min": pc.InfraMin, "prestige_min": pc.PrestigeMin,
+		"funding_days": pc.FundingDays, "agi_days": pc.AGIDays, "greedy_end_days": pc.GreedyEndDays,
+		"passive_end_days": pc.PassiveEndDays,
+	} {
+		v.rangePair("pacing."+name, r)
+	}
+	for i, band := range pc.IncomeBands {
+		p := fmt.Sprintf("pacing.income_bands[%d]", i)
+		if len(band) != 4 || band[0] > band[1] || band[2] > band[3] || band[0] < 1 {
+			v.add(p, "must be [first_day, last_day, low_log10, high_log10] with first <= last and low <= high")
+		}
+	}
+
 	if len(v.errs) == 0 {
 		return nil
 	}

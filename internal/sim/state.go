@@ -136,6 +136,8 @@ type Training struct {
 	Licenses      int        `json:"licenses"`
 	Released      int        `json:"released"`
 	ScraperPauseS float64    `json:"scraper_pause_until_s"`
+	Pending       []Model    `json:"pending_releases"`
+	Archive       []Model    `json:"archive"`
 }
 
 type Model struct {
@@ -156,6 +158,7 @@ type TrainJob struct {
 	Arch         []string `json:"arch"`
 	ArchMult     float64  `json:"arch_mult"`
 	Synthetic    float64  `json:"synthetic"`
+	Manual       bool     `json:"manual,omitempty"`
 }
 
 type Researcher struct {

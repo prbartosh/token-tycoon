@@ -42,6 +42,7 @@ type Balance struct {
 	Card             []Card           `toml:"card"`
 	Rules            Rules            `toml:"rules"`
 	UI               UI               `toml:"ui"`
+	Pacing           Pacing           `toml:"pacing"`
 
 	idx index `toml:"-"`
 }
@@ -520,4 +521,21 @@ type Colors struct {
 	Rare         string   `toml:"rare"`
 	Epic         string   `toml:"epic"`
 	TierGradient []string `toml:"tier_gradient"`
+}
+
+type Pacing struct {
+	GreedySessionMin   float64     `toml:"greedy_session_min"`
+	GreedySessionsDay  int         `toml:"greedy_sessions_per_day"`
+	FlatMaxS           float64     `toml:"flat_max_s"`
+	FirstManagerS      []float64   `toml:"first_manager_s"`
+	InfraMin           []float64   `toml:"infra_min"`
+	PrestigeMin        []float64   `toml:"prestige_min"`
+	SessionNewS        float64     `toml:"session_new_s"`
+	GoalUntilDay       int         `toml:"goal_until_day"`
+	IncomeBands        [][]float64 `toml:"income_bands"`
+	IncomeToleranceOOM float64     `toml:"income_tolerance_oom"`
+	FundingDays        []float64   `toml:"funding_days"`
+	AGIDays            []float64   `toml:"agi_days"`
+	GreedyEndDays      []float64   `toml:"greedy_end_days"`
+	PassiveEndDays     []float64   `toml:"passive_end_days"`
 }

@@ -1348,6 +1348,30 @@ slots_start = 3
 slots_max = 12
 eval_every_s = 1
 
+# ---------------------------------------------------------------- pacing targets (simulator)
+# Acceptance criteria of DESIGN 10 checked by `token-tycoon --simulate` (exit code 1 with --ci).
+# The greedy bot plays like the DESIGN 10 player: greedy decisions during daily sessions of
+# greedy_session_min minutes (greedy_sessions_per_day of them, evenly spaced), offline in between.
+# greedy_session_min = 1440 turns it into a bot that plays without a break.
+[pacing]
+greedy_session_min = 60
+greedy_sessions_per_day = 1
+flat_max_s = 120               # longest stretch without a sensible purchase in the first hour of play
+first_manager_s = [30, 60]     # play time
+infra_min = [20, 30]           # play time to lifetime 1e7
+prestige_min = [45, 90]        # play time to the prestige threshold
+session_new_s = 300            # every session shows something new within this time
+goal_until_day = 20            # every day up to this one brings a new mechanic or goal
+# DESIGN 10 table: [first_day, last_day, log10 of the lowest, log10 of the highest income $/s].
+# The best income of every day must lie in the row of that day, +- income_tolerance_oom.
+income_bands = [[1, 1, 3, 9], [2, 2, 9, 13], [3, 3, 13, 18], [4, 4, 18, 25], [5, 7, 25, 40],
+                [8, 9, 40, 50], [10, 13, 50, 65], [14, 17, 65, 90], [18, 30, 90, 150]]
+income_tolerance_oom = 1
+funding_days = [5, 7]          # day of the funding round threshold
+agi_days = [18, 20]            # day of the race to AGI threshold
+greedy_end_days = [25, 32]     # day of the ending, greedy bot
+passive_end_days = [40, 50]    # day of the ending, passive bot (offline + short daily session)
+
 # ---------------------------------------------------------------- interface
 [ui]
 number_suffixes = ["", "K", "M", "B", "T"]

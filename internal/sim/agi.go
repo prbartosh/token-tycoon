@@ -86,6 +86,9 @@ func agiInvest(s *State, b *balance.Balance, c *Command, out []Event) []Event {
 		return reject(out, c, RejectCannotAfford, need)
 	}
 	x := math.Min(s.Money, need)
+	if c.Share > 0 && c.Share < 1 {
+		x = math.Min(x, s.Money*c.Share)
+	}
 	s.Money -= x
 	a.Invested += x
 	s.Stats.AGIInvested += x

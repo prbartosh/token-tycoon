@@ -31,7 +31,7 @@ func newOffer(s *State, b *balance.Balance) Contract {
 	cc := &b.Contracts
 	r := &s.RNG.Misc
 	dur := math.Round(r.Range(cc.DurationMin[0], cc.DurationMin[1])) * 60
-	vol := s.Derived.TokensPerSec * dur * r.Range(cc.VolumeMult[0], cc.VolumeMult[1])
+	vol := SteadyTokensPerSec(s) * dur * r.Range(cc.VolumeMult[0], cc.VolumeMult[1])
 	bench := math.Round(BestBenchmark(s, b) + r.Range(cc.BenchOffset[0], cc.BenchOffset[1]))
 	bench = math.Min(99, math.Max(cc.MinBenchFloor, bench))
 	s.ContractSeq++
@@ -74,7 +74,15 @@ func declineContract(s *State, b *balance.Balance, c *Command, out []Event) []Ev
 	return append(out, Event{Kind: EvContractDeclined, Business: -1, Index: i, Count: id})
 }
 
-func tickContracts(s *State, b *balance.Balance, dt, earned float64, out []Event, md mode) []Event {
+func SteadyTokensPerSec(s *State) float64 {
+	d := &s.Derived
+	if !(d.CritEV > 0) {
+		return d.TokensPerSec
+	}
+	return d.TokensPerSec / d.CritEV
+}
+
+func tickContracts(s *State, b *balance.Balance, dt, _ float64, out []Event, md mode) []Event {
 	if !s.IsUnlocked(UnlockContracts) {
 		return out
 	}
@@ -89,10 +97,7 @@ func tickContracts(s *State, b *balance.Balance, dt, earned float64, out []Event
 		return out
 	}
 	d := &s.Derived
-	tokens := 0.0
-	if den := d.Price * d.NetMult; den > 0 {
-		tokens = earned / den
-	}
+	tokens := SteadyTokensPerSec(s) * dt
 	for k := 0; k < len(s.Contracts); {
 		ct := &s.Contracts[k]
 		ct.Delivered = math.Min(ct.Volume, ct.Delivered+tokens)

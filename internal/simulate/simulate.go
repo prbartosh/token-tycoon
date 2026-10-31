@@ -110,6 +110,12 @@ type Session struct {
 	FirstUnlockT float64
 }
 
+type GoalAt struct {
+	T     float64
+	Kind  sim.EventKind
+	Index int
+}
+
 type Result struct {
 	Config        Config
 	Final         sim.State
@@ -149,6 +155,13 @@ type Result struct {
 	AGIStages     []float64
 	EndingT       float64
 	Responses     int
+	Goals         []GoalAt
+	DayIncome     []float64
+	ManagerPlayS  float64
+	InfraPlayS    float64
+	PrestigePlayS float64
+	SessionS      float64
+	SessionsDay   int
 }
 
 var grantEpoch = time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
@@ -192,18 +205,22 @@ func Run(b *balance.Balance, cfg Config) (*Result, error) {
 		return nil, fmt.Errorf("simulate: duration must be > 0")
 	}
 	bt := &bot{
-		cfg:      cfg,
-		b:        b,
-		s:        sim.NewState(b, cfg.Seed),
-		res:      &Result{Config: cfg, FirstManagerT: -1, InfraT: -1, PrestigeT: -1, MarketT: -1, TrainingT: -1, Layer2T: -1, RegionsT: -1, AGIT: -1, EndingT: -1},
+		cfg: cfg,
+		b:   b,
+		s:   sim.NewState(b, cfg.Seed),
+		res: &Result{Config: cfg, FirstManagerT: -1, InfraT: -1, PrestigeT: -1, MarketT: -1, TrainingT: -1, Layer2T: -1, RegionsT: -1, AGIT: -1, EndingT: -1,
+			ManagerPlayS: -1, InfraPlayS: -1, PrestigePlayS: -1},
 		evs:      make([]sim.Event, 0, 256),
 		cmds:     make([]sim.Command, 0, 16),
 		rnd:      rand.New(rand.NewPCG(cfg.Seed, 0xB07)),
 		grantDay: -1,
 	}
-	if cfg.Strategy == Passive {
-		bt.runPassive()
-	} else {
+	switch {
+	case cfg.Strategy == Passive:
+		bt.runSessions(cfg.SessionS, 1)
+	case cfg.Strategy == Greedy && b.Pacing.GreedySessionMin < 1440:
+		bt.runSessions(b.Pacing.GreedySessionMin*60, b.Pacing.GreedySessionsDay)
+	default:
 		bt.active(cfg.Duration)
 	}
 	bt.sample(true)
@@ -211,30 +228,50 @@ func Run(b *balance.Balance, cfg Config) (*Result, error) {
 	return bt.res, nil
 }
 
-func (bt *bot) runPassive() {
-	const day = 86400.0
-	for t := 0.0; t < bt.cfg.Duration-1e-9; t += day {
+func (bt *bot) runSessions(sessionS float64, perDay int) {
+	period := 86400 / float64(perDay)
+	bt.res.SessionS, bt.res.SessionsDay = sessionS, perDay
+	for start := 0.0; start < bt.cfg.Duration-1e-9; start += period {
 		var offEvs []sim.Event
-		if t > 0 {
-			res, evs := sim.Offline(&bt.s, bt.b, day-bt.cfg.SessionS, bt.evs[:0])
+		if gap := start - bt.s.Clock; gap > 0 {
+			res, evs := sim.Offline(&bt.s, bt.b, gap, bt.evs[:0])
 			bt.res.OfflineS += res.Simulated
 			bt.res.OfflineEarned += res.Earned
 			bt.s.Clock += res.Elapsed - res.Simulated
 			offEvs = evs
+			bt.noteIncome()
 		}
 		bt.res.Sessions = append(bt.res.Sessions, Session{StartT: bt.s.Clock, FirstUnlockT: -1})
 		bt.session = &bt.res.Sessions[len(bt.res.Sessions)-1]
 		bt.observe(offEvs, bt.s.Clock)
-		if t > 0 {
+		if start > 0 {
 			bt.sample(true)
 		}
-		active := math.Min(bt.cfg.SessionS, bt.cfg.Duration-t)
-		bt.active(active)
-		if t == 0 {
+		bt.active(math.Min(sessionS, bt.cfg.Duration-start))
+		if start == 0 {
 			bt.flatHorizon = bt.s.Clock
 		}
 		bt.session = nil
 	}
+	if gap := bt.cfg.Duration - bt.s.Clock; gap > 0 {
+		res, evs := sim.Offline(&bt.s, bt.b, gap, bt.evs[:0])
+		bt.res.OfflineS += res.Simulated
+		bt.res.OfflineEarned += res.Earned
+		bt.s.Clock += res.Elapsed - res.Simulated
+		bt.observe(evs, bt.s.Clock)
+		bt.noteIncome()
+	}
+}
+
+func (bt *bot) noteIncome() {
+	day := int(bt.s.Clock / 86400)
+	if bt.s.Clock > 0 && bt.s.Clock == float64(day)*86400 {
+		day--
+	}
+	for len(bt.res.DayIncome) <= day {
+		bt.res.DayIncome = append(bt.res.DayIncome, 0)
+	}
+	bt.res.DayIncome[day] = math.Max(bt.res.DayIncome[day], bt.s.Derived.BaseIncome)
 }
 
 func (bt *bot) active(d float64) {
@@ -258,6 +295,7 @@ func (bt *bot) active(d float64) {
 		bt.observe(bt.evs, bt.s.Clock)
 		bt.track(step)
 		bt.sample(false)
+		bt.noteIncome()
 	}
 }
 
@@ -342,19 +380,31 @@ func (bt *bot) clicks(dt float64) {
 	}
 }
 
+func isGoal(k sim.EventKind) bool {
+	switch k {
+	case sim.EvUnlock, sim.EvGPUGen, sim.EvFunding, sim.EvAGIStage, sim.EvAGIEnding, sim.EvSILevel:
+		return true
+	}
+	return false
+}
+
 func (bt *bot) observe(evs []sim.Event, t float64) {
+	play := bt.s.Stats.PlayS
 	for _, e := range evs {
+		if isGoal(e.Kind) {
+			bt.res.Goals = append(bt.res.Goals, GoalAt{T: t, Kind: e.Kind, Index: e.Index})
+		}
+		if (isGoal(e.Kind) || e.Kind == sim.EvResearchDone) && bt.session != nil && bt.session.FirstUnlockT < 0 {
+			bt.session.FirstUnlockT = math.Max(0, t-bt.session.StartT)
+		}
 		switch e.Kind {
 		case sim.EvUnlock:
 			bt.res.Unlocks = append(bt.res.Unlocks, UnlockAt{T: t, Unlock: sim.Unlock(e.Index)})
-			if bt.session != nil && bt.session.FirstUnlockT < 0 {
-				bt.session.FirstUnlockT = math.Max(0, t-bt.session.StartT)
-			}
 			switch sim.Unlock(e.Index) {
 			case sim.UnlockInfra:
-				bt.res.InfraT = t
+				bt.res.InfraT, bt.res.InfraPlayS = t, play
 			case sim.UnlockPrestige1:
-				bt.res.PrestigeT = t
+				bt.res.PrestigeT, bt.res.PrestigePlayS = t, play
 			case sim.UnlockMarket:
 				bt.res.MarketT = t
 			case sim.UnlockTraining:
@@ -385,7 +435,7 @@ func (bt *bot) observe(evs []sim.Event, t float64) {
 			}
 		case sim.EvManager:
 			if bt.res.FirstManagerT < 0 {
-				bt.res.FirstManagerT = t
+				bt.res.FirstManagerT, bt.res.ManagerPlayS = t, play
 			}
 		case sim.EvEventStart:
 			ev := &bt.b.Event[e.Index]

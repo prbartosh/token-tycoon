@@ -1,0 +1,390 @@
+<!doctype html>
+<!-- Token Tycoon: static landing page, scroll-driven terminal scenes, no build step. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Tycoon</title>
+<meta name="description" content="Token Tycoon: an idle tycoon game about the AI industry, played in your terminal.">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0E14;--text:#E6E6E6;--dim:#5C6370;--cyan:#00E5FF;--green:#39FF88;--bad:#FF4D6D;
+  --gold:#FFC300;--mag:#FF3CAC;--params:#A66CFF;--capital:#2EC4B6;--rare:#3A86FF;--epic:#B15CFF;
+  --cols:46;
+  --fs:min(16px,calc((100vw - 32px) / (var(--cols) * 0.6)));
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg);color:var(--text);scroll-behavior:smooth}
+body{background:var(--bg);font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.4;overflow-x:hidden}
+a{color:inherit}
+.c{color:var(--cyan)}.g{color:var(--green)}.b{color:var(--bad)}.y{color:var(--gold)}.m{color:var(--mag)}
+.p{color:var(--params)}.d{color:var(--dim)}.r{color:var(--rare)}.e{color:var(--epic)}.k{color:var(--capital)}.w{font-weight:700}
+.top{position:fixed;inset:0 0 auto 0;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:linear-gradient(var(--bg) 60%,transparent)}
+.hud{font-size:14px;font-variant-numeric:tabular-nums}
+.lang button{background:none;border:0;color:var(--dim);font:inherit;font-size:13px;cursor:pointer;padding:4px 6px}
+.lang button[aria-pressed=true]{color:var(--cyan);font-weight:700}
+.hero{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:80px 16px 40px;text-align:center}
+.logo{font-size:var(--fs);line-height:1.15;white-space:pre;font-weight:700}
+.tag{color:var(--text);max-width:34ch}
+.tag .d{display:block;margin-top:6px;font-size:13px}
+.btn{display:inline-block;text-decoration:none;color:var(--bg);background:var(--cyan);font-weight:700;padding:10px 18px;border:0;font:inherit;font-weight:700;cursor:pointer}
+.btn.ghost{background:none;color:var(--text);outline:1px solid var(--dim)}
+.btn.ghost.hit{color:var(--bg);background:var(--cyan);outline:0}
+.hint{color:var(--dim);font-size:13px;animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(5px)}}
+.scene{position:relative;height:260vh}
+.stick{position:sticky;top:0;height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:56px 16px 24px}
+.line{max-width:40ch;text-align:center;will-change:opacity,transform}
+.line .n{color:var(--dim);margin-right:8px}
+pre.term{font:inherit;font-size:var(--fs);line-height:1.25;white-space:pre;will-change:opacity,transform}
+pre.term .in{display:inline-block;width:44ch;overflow:hidden;vertical-align:top}
+.dl{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:60px 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;width:100%;max-width:560px}
+.grid .btn{text-align:center;font-size:14px}
+.grid .btn small{display:block;font-weight:400;opacity:.75;font-size:12px}
+.cmds{width:100%;max-width:560px;display:flex;flex-direction:column;gap:8px}
+.cmd{display:flex;align-items:center;gap:10px;border:1px solid #1d2330;padding:8px 10px;cursor:pointer;background:none;color:var(--text);font:inherit;font-size:13px;text-align:left;width:100%}
+.cmd code{flex:1;overflow-x:auto;white-space:nowrap;font:inherit}
+.cmd code::before{content:"$ ";color:var(--dim)}
+.cmd span{color:var(--dim);font-size:12px;flex:none}
+.cmd.ok span{color:var(--green)}
+.free{color:var(--gold);font-size:13px}
+footer{color:var(--dim);font-size:12px;text-align:center;padding:24px 16px 32px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hint{animation:none}.scene{height:auto}.stick{position:static;min-height:100svh}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="hud" id="hud"><span class="d">$ </span><span class="c w" id="hudv">0</span></div>
+  <div class="lang"><button data-l="pl">PL</button><button data-l="en">EN</button></div>
+</header>
+
+<section class="hero">
+  <pre class="logo" id="logo" aria-label="Token Tycoon"></pre>
+  <p class="tag"><span data-t="tag"></span><span class="d" data-t="sub"></span></p>
+  <div><a class="btn" id="heroDl" href="#download"></a></div>
+  <p class="free" data-t="free"></p>
+  <p class="hint" data-t="scroll"></p>
+</section>
+
+<section class="scene" data-s="start"><div class="stick"><p class="line"><span class="n">01</span><span data-t="s1"></span></p><pre class="term"></pre></div></section>
+<section class="scene" data-s="managers"><div class="stick"><p class="line"><span class="n">02</span><span data-t="s2"></span></p><pre class="term"></pre></div></section>
+<section class="scene" data-s="infra"><div class="stick"><p class="line"><span class="n">03</span><span data-t="s3"></span></p><pre class="term"></pre></div></section>
+<section class="scene" data-s="prestige"><div class="stick"><p class="line"><span class="n">04</span><span data-t="s4"></span></p><pre class="term"></pre></div></section>
+<section class="scene" data-s="market"><div class="stick"><p class="line"><span class="n">05</span><span data-t="s5"></span></p><pre class="term"></pre></div></section>
+<section class="scene" data-s="funding"><div class="stick"><p class="line"><span class="n">06</span><span data-t="s6"></span></p><pre class="term"></pre></div></section>
+<section class="scene" data-s="agi"><div class="stick"><p class="line"><span class="n">07</span><span data-t="s7"></span></p><pre class="term"></pre></div></section>
+
+<section class="dl" id="download">
+  <pre class="term" id="dlterm"></pre>
+  <div class="grid" id="grid"></div>
+  <div class="cmds" id="cmds"></div>
+  <p class="d" style="font-size:12px;text-align:center" data-t="mac"></p>
+  <p class="free" data-t="free"></p>
+</section>
+<footer>© 2026 Bartosz Pajor</footer>
+
+<script>
+const CONFIG = {
+  repo: "https://github.com/prbartosh/token-tycoon-releases",
+  asset: (os, arch) => `https://github.com/prbartosh/token-tycoon-releases/releases/latest/download/token-tycoon_${os}_${arch}.${os === "windows" ? "zip" : "tar.gz"}`,
+  builds: [
+    { id: "mac-arm", os: "darwin", arch: "arm64", label: "macOS", sub: "Apple Silicon" },
+    { id: "mac-x64", os: "darwin", arch: "amd64", label: "macOS", sub: "Intel" },
+    { id: "lin-x64", os: "linux", arch: "amd64", label: "Linux", sub: "x86_64" },
+    { id: "lin-arm", os: "linux", arch: "arm64", label: "Linux", sub: "arm64" },
+    { id: "win-x64", os: "windows", arch: "amd64", label: "Windows", sub: "x86_64" }
+  ],
+  commands: [
+    "brew install prbartosh/tap/token-tycoon"
+  ]
+};
+
+const T = {
+  en: {
+    tag: "Build an AI empire from one API wrapper. In your terminal.",
+    sub: "idle tycoon · PL / EN · macOS, Linux, Windows",
+    free: "Free during testing.", scroll: "scroll ↓", dl: "Download", copy: "copy", copied: "copied",
+    s1: "One API wrapper. $ 0.", s2: "Hire managers. Let it run.", s3: "Your own GPUs, power, scrapers.",
+    s4: "Ship a new model version.", s5: "Fight rivals for the market.", s6: "Raise rounds. Burn cash.", s7: "Race to AGI.",
+    biz: ["API Wrapper","RAG Chatbot","LoRA Fine-tune","Vibe Coding Studio","Agent Swarm (MCP)","Reasoning Model","GPU Rental Cluster","SMR Data Center","Orbital Data Center","Frontier Lab"],
+    cash: "cash", rate: "/s", tap: "[space] run", mgr: "manager", combo: "COMBO", racks: "racks", power: "power", data: "data",
+    newv: "NEW MODEL VERSION", params: "params", mult: "revenue", rev: "revenue", share: "market share", you: "you",
+    round: "round", val: "valuation", agi: "AGI progress", agiDone: "SUPERINTELLIGENCE", ready: "ready to play", mac: "macOS, direct download: xattr -d com.apple.quarantine token-tycoon"
+  },
+  pl: {
+    tag: "Zbuduj imperium AI z jednego wrappera na API. W terminalu.",
+    sub: "idle tycoon · PL / EN · macOS, Linux, Windows",
+    free: "Za darmo w czasie testów.", scroll: "przewiń ↓", dl: "Pobierz", copy: "kopiuj", copied: "skopiowano",
+    s1: "Jeden wrapper na API. $ 0.", s2: "Zatrudnij menedżerów. Niech kręci się samo.", s3: "Własne GPU, energia, scrapery.",
+    s4: "Wypuść nową wersję modelu.", s5: "Walcz z rywalami o rynek.", s6: "Zbieraj rundy. Pal gotówkę.", s7: "Wyścig do AGI.",
+    biz: ["Wrapper na API","Chatbot z RAG","Fine-tune LoRA","Vibe coding studio","Rój agentów (MCP)","Model reasoningowy","Klaster GPU na wynajem","Data center z reaktorem SMR","Orbitalne data center","Frontier lab"],
+    cash: "gotówka", rate: "/s", tap: "[spacja] uruchom", mgr: "menedżer", combo: "COMBO", racks: "racki", power: "energia", data: "dane",
+    newv: "NOWA WERSJA MODELU", params: "parametry", mult: "przychód", rev: "przychód", share: "udział w rynku", you: "ty",
+    round: "runda", val: "wycena", agi: "postęp AGI", agiDone: "SUPERINTELIGENCJA", ready: "gotowe do gry", mac: "macOS, plik pobrany ręcznie: xattr -d com.apple.quarantine token-tycoon"
+  }
+};
+
+const GRAD = ["#00E5FF","#00C2FF","#3A86FF","#6A5CFF","#A66CFF","#D45CFF","#FF3CAC","#FF6B6B","#FF9F1C","#FFC300"];
+const EIGHTHS = ["▏","▎","▍","▌","▋","▊","▉","█"];
+const W = 44;
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let lang = (navigator.language || "en").toLowerCase().startsWith("pl") ? "pl" : "en";
+const L = () => T[lang];
+
+const NAMED = ["", "K", "M", "B", "T"];
+function suffix(g) {
+  if (g < NAMED.length) return NAMED[g];
+  const i = g - NAMED.length;
+  if (i < 676) return String.fromCharCode(97 + Math.floor(i / 26), 97 + (i % 26));
+  return "e" + g * 3;
+}
+function num(v) {
+  if (v < 1000) return v === Math.trunc(v) ? String(v) : String(Math.round(v * 100) / 100);
+  const [m, e] = v.toExponential(2).split("e");
+  const exp = +e, g = Math.floor(exp / 3), id = (exp % 3) + 1;
+  const dg = m.replace(".", "");
+  let frac = dg.slice(id).replace(/0+$/, "");
+  return dg.slice(0, id) + (frac ? "." + frac : "") + suffix(g);
+}
+const money = v => "$ " + num(v);
+
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const span = (cls, s) => cls ? `<span class="${cls}">${esc(s)}</span>` : esc(s);
+const col = (hex, s) => `<span style="color:${hex}">${esc(s)}</span>`;
+const len = s => [...s].length;
+const pad = (s, n) => s + " ".repeat(Math.max(0, n - len(s)));
+const lpad = (s, n) => " ".repeat(Math.max(0, n - len(s))) + s;
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+
+function frame(title, rows, color = "d") {
+  const t = title ? `─ ${title} ` : "";
+  const top = span(color, "╭" + t + "─".repeat(W - len(t)) + "╮");
+  const bot = span(color, "╰" + "─".repeat(W) + "╯");
+  return [top, ...rows.map(([html, plain]) => span(color, "│") + `<span class="in"> ${html}</span>` + span(color, "│")), bot].join("\n");
+}
+const row = (...parts) => { let h = "", p = ""; for (const [c, s] of parts) { h += c && c[0] === "#" ? col(c, s) : span(c, s); p += s; } return [h, p]; };
+
+function bar(frac, width, color) {
+  const cells = frac * width, full = Math.floor(cells), part = Math.floor((cells - full) * 8);
+  let s = "█".repeat(Math.min(full, width));
+  if (full < width && part > 0) s += EIGHTHS[part - 1];
+  return [[color, s], ["d", "·".repeat(Math.max(0, width - len(s)))]];
+}
+function flow(width, t, tier) {
+  const out = [];
+  for (let i = 0; i < width; i++) {
+    const k = (i / width * 3 - t * 1.6 + tier * 0.3) % 1;
+    const a = GRAD[(tier + Math.floor((k < 0 ? k + 1 : k) * 4)) % GRAD.length];
+    out.push([a, "█"]);
+  }
+  return out;
+}
+function braille(data, w, h) {
+  const LB = [0x40, 0x04, 0x02, 0x01], RB = [0x80, 0x20, 0x10, 0x08];
+  const lines = [];
+  for (let r = 0; r < h; r++) {
+    let s = "";
+    for (let c = 0; c < w; c++) {
+      let code = 0;
+      [0, 1].forEach(side => {
+        const v = data[c * 2 + side]; if (v === undefined) return;
+        const dots = Math.round(v * h * 4) - (h - 1 - r) * 4;
+        for (let d = 0; d < Math.min(4, dots); d++) code |= (side ? RB : LB)[d];
+      });
+      s += String.fromCharCode(0x2800 + code);
+    }
+    lines.push(s);
+  }
+  return lines;
+}
+
+const SCENES = {
+  start(p, t) {
+    const l = L(), runs = Math.floor(ease(p) * 9), cyc = reduce ? 1 : (p * 9) % 1;
+    const cash = runs * 4 + (p > .95 ? 12 : 0);
+    const owned = 1 + Math.floor(p * 4);
+    return frame("TOKEN TYCOON", [
+      row(["d", l.cash + " "], ["c w", money(cash)]),
+      row(),
+      row(["#00E5FF", "▸ " + pad(l.biz[0], 22)], ["d", "x"], ["w", lpad(String(owned), 3)]),
+      row(["", "  "], ...bar(cyc, 30, "g"), ["g", " +$4"]),
+      row(),
+      row(["d", "  " + l.biz[1]], ["b", lpad("$ 60", 18)]),
+      row(),
+      row(["y", "  " + l.tap])
+    ]);
+  },
+  managers(p, t) {
+    const l = L(), rows = [], n = 1 + Math.floor(ease(p * 1.2) * 4), combo = (1 + p * 4).toFixed(1);
+    rows.push(row(["d", l.cash + " "], ["c w", pad(money(4.2e3 * Math.pow(1e4, p)), 16)], ["m w", lpad(l.combo + " x" + combo, 18)]));
+    rows.push(row());
+    for (let i = 0; i < 5; i++) {
+      if (i >= n) { rows.push(row(["d", "  " + pad(l.biz[i], 24) + "locked"])); rows.push(row()); continue; }
+      const speed = 0.4 + i * 0.5 + p * 3, cyc = reduce ? .7 : (t * speed + i * .17) % 1;
+      rows.push(row([GRAD[i], "▸ " + pad(l.biz[i], 24)], ["k", "★ " + l.mgr]));
+      if (speed > 2.6 && !reduce) rows.push(row(["", "  "], ...flow(26, t, i), ["g", "     max"]));
+      else rows.push(row(["", "  "], ...bar(cyc, 30, "g"), ["g", " +" + num(Math.pow(10, i + 1))]));
+    }
+    return frame("TOKEN TYCOON", rows);
+  },
+  infra(p, t) {
+    const l = L(), racks = Math.floor(ease(p) * 48), rows = [];
+    rows.push(row(["d", l.racks + " "], ["w", pad(String(racks), 6)], ["d", l.power + " "], ["y", pad(Math.round(racks * 2.4) + " MW", 9)], ["d", l.data + " "], ["p", num(racks * 3.1e9)]));
+    rows.push(row());
+    for (let r = 0; r < 4; r++) {
+      const parts = [["", "  "]];
+      for (let c = 0; c < 12; c++) {
+        const i = r * 12 + c, on = i < racks, blink = on && !reduce && Math.sin(t * 6 + i * 1.7) > .6;
+        parts.push([on ? (blink ? "g" : GRAD[(i >> 2) % 6]) : "d", on ? "▮ " : "▯ "]);
+      }
+      rows.push(row(...parts));
+    }
+    rows.push(row());
+    rows.push(row(["d", l.power.padEnd(8)], ...bar(clamp(racks / 48 * 0.82), 28, "y"), ["y", " " + Math.round(racks / 48 * 82) + "%"]));
+    rows.push(row(["#00C2FF", "▸ " + l.biz[6]]));
+    return frame("INFRA", rows);
+  },
+  prestige(p, t) {
+    const l = L(), from = 3, show = p > .35, q = clamp((p - .35) / .45);
+    const params = Math.round(70 * Math.pow(10, q * 2)), mult = (1 + q * 24).toFixed(1);
+    const rows = [row(), row(["", " ".repeat(10)], ["y w", show ? "★ " + l.newv + " ★" : ""]), row()];
+    rows.push(row(["", " ".repeat(14)], ["d", "v" + from + " "], ["y w", show ? "→ v" + (from + 1) : "  ..."]));
+    rows.push(row());
+    rows.push(row(["d", "  " + pad(l.params, 12)], ["p w", num(params * 1e9)]));
+    rows.push(row(["d", "  " + pad(l.mult, 12)], ["g w", "x" + mult]));
+    rows.push(row());
+    const glow = [];
+    for (let i = 0; i < 40; i++) glow.push([GRAD[9 - ((i + Math.floor(t * 12)) % 4)], i < q * 40 ? "━" : " "]);
+    rows.push(row(["", " "], ...glow));
+    rows.push(row(["d", "  " + l.cash + " "], ["c w", money(show ? 0 : 8.4e15 * (1 + p * 4))]));
+    return frame("", rows, show ? "y" : "d");
+  },
+  market(p, t) {
+    const l = L(), cols = 36, n = Math.floor(ease(p) * cols * 2), data = [];
+    for (let i = 0; i < n; i++) { const x = i / (cols * 2); data.push(clamp(.08 + x * x * .85 + Math.sin(i * .7) * .04)); }
+    const ch = braille(data, cols, 5), rows = [];
+    rows.push(row(["d", l.rev + " "], ["g w", num(2e18 * Math.pow(1e3, p)) + l.rate]));
+    ch.forEach(s => rows.push(row(["", "  "], ["g", s])));
+    rows.push(row());
+    rows.push(row(["d", l.share]));
+    const you = .06 + ease(p) * .4, rivals = [["Northwind", .38 - p * .2], ["OpenWeights", .3 - p * .12], ["Dragonfly", .2 - p * .06]];
+    rows.push(row(["c w", pad(l.you, 11)], ...bar(you, 24, "c"), ["c", lpad(Math.round(you * 100) + "%", 5)]));
+    rivals.forEach(([nm, v]) => rows.push(row(["d", pad(nm, 11)], ...bar(v, 24, "b"), ["b", lpad(Math.round(v * 100) + "%", 5)])));
+    return frame("MARKET", rows);
+  },
+  funding(p, t) {
+    const l = L(), names = ["Seed", "Series A", "Series B", "Series C", "Series D", "IPO"], k = Math.min(5, Math.floor(p * 6)), rows = [];
+    rows.push(row(["d", l.val + " "], ["k w", money(5e6 * Math.pow(1e3, p * 5))]));
+    rows.push(row());
+    names.forEach((nm, i) => {
+      const done = i < k, cur = i === k;
+      rows.push(row([done ? "g" : cur ? "y w" : "d", (done ? "✓ " : cur ? "▸ " : "  ") + pad(nm, 12)], ...(cur ? bar(reduce ? 1 : (p * 6) % 1, 22, "y") : [[done ? "k" : "d", done ? "$ " + num(2e6 * Math.pow(30, i)) : "·".repeat(22)]])));
+    });
+    rows.push(row());
+    rows.push(row(["d", "burn "], ["b", "-" + money(1.2e5 * Math.pow(40, k)) + l.rate]));
+    return frame("FUNDING", rows);
+  },
+  agi(p, t) {
+    const l = L(), q = ease(p * 1.15), done = q >= .999, rows = [];
+    rows.push(row(["d", l.agi + " "], [done ? "m w" : "w", (q * 100).toFixed(1) + "%"]));
+    rows.push(row());
+    ["compute", "data", "alignment", "talent"].forEach((s, i) => {
+      const f = clamp(q * 1.1 - i * .03);
+      rows.push(row(["d", pad(s, 11)], ...(f >= 1 && !reduce ? flow(28, t, 4 + i) : bar(f, 28, "e")), ["e", lpad(Math.round(f * 100) + "%", 5)]));
+    });
+    rows.push(row());
+    rows.push(row(["", " ".repeat(Math.floor((W - 1 - len(l.agiDone) - 4) / 2))], ["m w", done ? "◆ " + l.agiDone + " ◆" : ""]));
+    rows.push(row());
+    return frame("AGI", rows, done ? "m" : "d");
+  }
+};
+
+const LOGO = [
+  "▀█▀ █▀█ █▄▀ █▀▀ █▄ █",
+  " █  █▄█ █ █ ██▄ █ ▀█",
+  "▀█▀ █▄█ █▀▀ █▀█ █▀█ █▀█ █▄ █",
+  " █   █  █▄▄ █▄█ █▄█ █▄█ █ ▀█"
+];
+function drawLogo(t) {
+  document.getElementById("logo").innerHTML = LOGO.map((ln, r) => [...ln].map((ch, i) =>
+    ch === " " ? " " : col(GRAD[Math.floor((i / 3 + r * .5 + (reduce ? 0 : t * 4)) % GRAD.length)], ch)).join("")).join("\n");
+}
+
+const scenes = [...document.querySelectorAll(".scene")].map(el => ({ el, key: el.dataset.s, pre: el.querySelector("pre"), line: el.querySelector(".line"), last: "", visible: false }));
+const io = new IntersectionObserver(es => es.forEach(e => { const s = scenes.find(x => x.el === e.target); if (s) s.visible = e.isIntersecting; }), { rootMargin: "100px" });
+scenes.forEach(s => io.observe(s.el));
+
+const hudv = document.getElementById("hudv");
+function progressOf(el) {
+  const r = el.getBoundingClientRect(), span = r.height - innerHeight;
+  return span <= 0 ? 1 : clamp(-r.top / span);
+}
+let lastLogo = -1, lastHud = "";
+function tick(ms) {
+  const t = ms / 1000;
+  if (!reduce && scrollY < innerHeight) { const lt = Math.floor(t * 15); if (lt !== lastLogo) { lastLogo = lt; drawLogo(t); } }
+  const doc = document.documentElement, gp = clamp(scrollY / Math.max(1, doc.scrollHeight - innerHeight));
+  const hv = money(gp < .02 ? 0 : Math.pow(10, gp * 63));
+  if (hv !== lastHud) { lastHud = hv; hudv.textContent = hv.slice(2); }
+  for (const s of scenes) {
+    if (!s.visible && s.last) continue;
+    const p = reduce ? 1 : progressOf(s.el);
+    const html = SCENES[s.key](p, reduce ? 0 : t);
+    if (html !== s.last) { s.pre.innerHTML = html; s.last = html; }
+    if (!reduce) {
+      const a = clamp(p * 6) * clamp((1 - p) * 8 + .15);
+      s.pre.style.opacity = a; s.line.style.opacity = a;
+      s.pre.style.transform = `translateY(${(1 - clamp(p * 5)) * 24}px) scale(${.96 + clamp(p * 5) * .04})`;
+      s.line.style.transform = `translateY(${(1 - clamp(p * 5)) * 14}px)`;
+    }
+  }
+  if (!reduce) requestAnimationFrame(tick);
+}
+
+function detect() {
+  const ua = navigator.userAgent, plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+  if (/Win/i.test(plat) || /Windows/.test(ua)) return "win-x64";
+  if (/Android|Linux/i.test(plat + ua) && !/Mac/.test(ua)) return /aarch64|arm/i.test(plat + ua) ? "lin-arm" : "lin-x64";
+  if (/Mac/i.test(plat + ua)) return "mac-arm";
+  return null;
+}
+const mine = detect();
+
+function renderDownloads() {
+  const l = L(), g = document.getElementById("grid");
+  g.innerHTML = CONFIG.builds.map(b => `<a class="btn ghost${b.id === mine ? " hit" : ""}" href="${CONFIG.asset(b.os, b.arch)}">${b.label}<small>${b.sub}</small></a>`).join("");
+  document.getElementById("cmds").innerHTML = CONFIG.commands.map(c => `<button class="cmd" type="button" data-c="${esc(c)}"><code>${esc(c)}</code><span>${l.copy}</span></button>`).join("");
+  const b = CONFIG.builds.find(x => x.id === mine), hero = document.getElementById("heroDl");
+  hero.textContent = b ? `${l.dl} · ${b.label} ${b.sub}` : l.dl;
+  hero.href = b ? CONFIG.asset(b.os, b.arch) : "#download";
+  document.getElementById("dlterm").innerHTML = frame("", [row(["g", "$ "], ["", "token-tycoon"]), row(["c w", "▸ " + l.ready])]);
+}
+document.getElementById("cmds").addEventListener("click", e => {
+  const btn = e.target.closest(".cmd"); if (!btn) return;
+  const done = () => { btn.classList.add("ok"); btn.querySelector("span").textContent = L().copied; setTimeout(() => { btn.classList.remove("ok"); btn.querySelector("span").textContent = L().copy; }, 1600); };
+  (navigator.clipboard ? navigator.clipboard.writeText(btn.dataset.c) : Promise.reject()).then(done, () => { const r = document.createRange(); r.selectNodeContents(btn.querySelector("code")); getSelection().removeAllRanges(); getSelection().addRange(r); });
+});
+
+function setLang(x) {
+  lang = x; document.documentElement.lang = x;
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = T[x][el.dataset.t]);
+  document.querySelectorAll(".lang button").forEach(b => b.setAttribute("aria-pressed", b.dataset.l === x));
+  scenes.forEach(s => s.last = "");
+  renderDownloads();
+  if (reduce) tick(0);
+}
+document.querySelectorAll(".lang button").forEach(b => b.addEventListener("click", () => setLang(b.dataset.l)));
+
+drawLogo(0);
+setLang(lang);
+if (reduce) addEventListener("scroll", () => { lastHud = ""; tick(0); }, { passive: true });
+else requestAnimationFrame(tick);
+</script>
+</body>
+</html>

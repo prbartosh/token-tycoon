@@ -203,11 +203,12 @@ type RandomEvent struct {
 }
 
 type Settings struct {
-	Lang       string `json:"lang"`
-	Notation   string `json:"notation"`
-	Advisor    bool   `json:"advisor"`
-	Colorblind bool   `json:"colorblind"`
-	Bell       bool   `json:"bell"`
+	Lang         string `json:"lang"`
+	Notation     string `json:"notation"`
+	Advisor      bool   `json:"advisor"`
+	Colorblind   bool   `json:"colorblind"`
+	Bell         bool   `json:"bell"`
+	TutorialDone bool   `json:"tutorial_done"`
 }
 
 type Stats struct {

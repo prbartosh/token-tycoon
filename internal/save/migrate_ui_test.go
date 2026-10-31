@@ -56,7 +56,7 @@ func TestRoundTripArchiveAndSettings(t *testing.T) {
 	s.Training.Archive = []sim.Model{{Name: "TT-4", Benchmark: 10}}
 	s.Training.Queue = []sim.TrainJob{{Params: 1e7, Tokens: 2e8, ClusterShare: 0.5, ArchMult: 1, Manual: true}}
 	s.Training.Released = 5
-	s.Settings = sim.Settings{Lang: "pl", Notation: "scientific", Advisor: false, Colorblind: true, Bell: true}
+	s.Settings = sim.Settings{Lang: "pl", Notation: "scientific", Advisor: false, Colorblind: true, Bell: true, TutorialDone: true}
 	data, err := Marshal(&s, b, at, false)
 	if err != nil {
 		t.Fatal(err)

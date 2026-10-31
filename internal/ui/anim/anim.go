@@ -29,6 +29,11 @@ const (
 	MaxSlots     = 32
 	MaxFloaters  = 64
 	MaxToasts    = 4
+	MaxPending   = 16
+	LongLife     = 1.5
+	MinShow      = 4.0
+	riseS        = 0.3
+	holdFrac     = 0.7
 	refFPS       = 30
 	defaultRate  = 0.2
 	toastFreq    = 14
@@ -125,7 +130,25 @@ func (f *Floater) Progress() float64 {
 	return math.Min(1, f.Age/f.Life)
 }
 
-func (f *Floater) Offset() int { return int(math.Round(f.Progress() * float64(f.Rise))) }
+func (f *Floater) long() bool { return f.Life >= LongLife }
+
+func (f *Floater) Offset() int {
+	p := f.Progress()
+	if f.long() {
+		p = math.Min(1, f.Age/riseS)
+	}
+	return int(math.Round(p * float64(f.Rise)))
+}
+
+func (f *Floater) Fade() float64 {
+	p := f.Progress()
+	if f.long() {
+		return math.Max(0, (p-holdFrac)/(1-holdFrac))
+	}
+	return p
+}
+
+func (f *Floater) moving() bool { return f.Alive() && (!f.long() || f.Age < riseS) }
 
 type Floaters struct {
 	pool [MaxFloaters]Floater
@@ -143,6 +166,16 @@ func (fs *Floaters) Spawn(slot int, text string, k Kind, life float64, rise int)
 	fs.next = (fs.next + 1) % MaxFloaters
 }
 
+func (fs *Floaters) Replace(slot int, text string, k Kind, life float64, rise int) {
+	for i := range fs.pool {
+		if f := &fs.pool[i]; f.Alive() && f.Slot == slot && f.Kind == k {
+			*f = Floater{Slot: slot, Text: text, Kind: k, Life: life, Rise: rise, Age: math.Min(f.Age, riseS)}
+			return
+		}
+	}
+	fs.Spawn(slot, text, k, life, rise)
+}
+
 func (fs *Floaters) Advance(dt float64) {
 	for i := range fs.pool {
 		if fs.pool[i].Alive() {
@@ -154,6 +187,15 @@ func (fs *Floaters) Advance(dt float64) {
 func (fs *Floaters) Items() []Floater { return fs.pool[:] }
 
 func (fs *Floaters) Active() bool {
+	for i := range fs.pool {
+		if fs.pool[i].moving() {
+			return true
+		}
+	}
+	return false
+}
+
+func (fs *Floaters) Alive() bool {
 	for i := range fs.pool {
 		if fs.pool[i].Alive() {
 			return true
@@ -183,18 +225,28 @@ func (t *Toast) moving() bool {
 }
 
 type Toasts struct {
-	items [MaxToasts]Toast
-	n     int
+	items   [MaxToasts]Toast
+	n       int
+	pending [MaxPending]Toast
+	np      int
 }
 
 func (ts *Toasts) Push(text string, k Kind, life float64) {
-	if ts.n == MaxToasts {
-		copy(ts.items[:], ts.items[1:])
-		ts.n--
+	t := Toast{Text: text, Kind: k, Pos: 1, Life: life}
+	if ts.n < MaxToasts && ts.np == 0 {
+		ts.items[ts.n] = t
+		ts.n++
+		return
 	}
-	ts.items[ts.n] = Toast{Text: text, Kind: k, Pos: 1, Life: life}
-	ts.n++
+	if ts.np == MaxPending {
+		copy(ts.pending[:], ts.pending[1:])
+		ts.np--
+	}
+	ts.pending[ts.np] = t
+	ts.np++
 }
+
+func (ts *Toasts) Pending() int { return ts.np }
 
 func (ts *Toasts) Advance(dt float64) {
 	if !(dt > 0) {
@@ -205,6 +257,9 @@ func (ts *Toasts) Advance(dt float64) {
 	for i := range ts.n {
 		t := ts.items[i]
 		t.Age += dt
+		if ts.np > 0 && t.Age >= MinShow && t.Life > t.Age {
+			t.Life = t.Age
+		}
 		t.Pos, t.Vel = sp.Update(t.Pos, t.Vel, t.target())
 		if t.Age >= t.Life && t.Pos >= 0.99 {
 			continue
@@ -213,6 +268,12 @@ func (ts *Toasts) Advance(dt float64) {
 		w++
 	}
 	ts.n = w
+	for ts.n < MaxToasts && ts.np > 0 {
+		ts.items[ts.n] = ts.pending[0]
+		ts.n++
+		copy(ts.pending[:], ts.pending[1:ts.np])
+		ts.np--
+	}
 }
 
 func (ts *Toasts) Items() []Toast { return ts.items[:ts.n] }

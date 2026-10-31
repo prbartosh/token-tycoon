@@ -48,7 +48,7 @@ func TestPlaySavesAndResumesWithAwayScreen(t *testing.T) {
 	if code := run([]string{"--lang", "en", "--no-color"}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
-	if !strings.Contains(first, "TOKEN TYCOON") || !strings.Contains(first, "API Wrapper") {
+	if !strings.Contains(first, "TOKEN TYCOON") || !strings.Contains(first, "API Wrapper") || !strings.Contains(first, "TUTORIAL 1/7") {
 		t.Fatal(first)
 	}
 	path := filepath.Join(dir, "token-tycoon", "save.json")
@@ -65,7 +65,7 @@ func TestPlaySavesAndResumesWithAwayScreen(t *testing.T) {
 	if code := run([]string{"--lang", "pl"}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
-	if !strings.Contains(second, "GDY CIĘ NIE BYŁO") || !strings.Contains(second, "2h00m") {
+	if !strings.Contains(second, "GDY CIĘ NIE BYŁO") || !strings.Contains(second, "2h00m") || strings.Contains(second, "SAMOUCZEK") {
 		t.Fatal(second)
 	}
 }

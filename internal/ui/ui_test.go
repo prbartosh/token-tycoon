@@ -190,13 +190,16 @@ func TestSelectionAndUpgrades(t *testing.T) {
 	if h.m.s.Upgrades.Count() != 1 {
 		t.Fatal("upgrade not bought")
 	}
-	h.contains(h.cat.T("ui.biz.owned"))
+	if h.m.sel.kind != rowUpgrade || h.m.s.Upgrades.Has(h.m.sel.idx) {
+		t.Fatalf("selection did not follow to an unbought upgrade: %+v", h.m.sel)
+	}
+	h.contains("> " + h.m.upgName(h.m.sel.idx))
 }
 
 func TestTabsKeysAndHelp(t *testing.T) {
 	h := newHarness(t, i18n.EN, 100, 30, nil)
 	h.key("4")
-	h.contains(h.cat.T("ui.tab.locked", h.cat.T("unlock.infra"), "$ 2.1B"))
+	h.contains(h.cat.T("ui.tab.locked", h.cat.T("unlock.infra"), h.m.money(h.b.Infra.UnlockLifetime)))
 	h.key("h", "l")
 	if h.m.tab != tabInfra {
 		t.Fatal("h and l must not switch tabs")

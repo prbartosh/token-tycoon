@@ -22,6 +22,8 @@ func (m *Model) overlays(g geometry) []*lipgloss.Layer {
 	}
 	ls = m.toasts(ls)
 	switch {
+	case m.tut.open:
+		ls = append(ls, m.tutLayer())
 	case m.pal.open:
 		ls = append(ls, m.topCentered(m.paletteBox(), 12))
 	case m.away.open:
@@ -58,7 +60,7 @@ func (m *Model) floaters(ls []*lipgloss.Layer, g geometry) []*lipgloss.Layer {
 		if y < topRows || y >= topRows+g.bodyH {
 			continue
 		}
-		step := min(theme.FadeSteps-1, int(f.Progress()*theme.FadeSteps))
+		step := min(theme.FadeSteps-1, int(f.Fade()*theme.FadeSteps))
 		st := m.th.Fade[step]
 		if f.Kind == anim.KindCrit {
 			st = m.th.GoldFade[step]
@@ -115,19 +117,29 @@ func (m *Model) toasts(ls []*lipgloss.Layer) []*lipgloss.Layer {
 	w := m.width
 	maxW := min(toastMaxW, max(24, w/3), w-4)
 	items := m.anim.Toast.Items()
+	y := topRows
 	for i := range items {
 		t := &items[i]
-		txt := " " + t.Text + " "
-		if widgets.Width(txt) > maxW {
-			txt = ansi.Truncate(txt, maxW-1, "…") + " "
+		parts := widgets.Wrap(t.Text, max(1, maxW-2))
+		tw := 0
+		for _, p := range parts {
+			tw = max(tw, widgets.Width(p)+2)
 		}
-		tw := widgets.Width(txt)
 		x := w - 1 - tw + int(t.Pos*float64(tw+1))
+		top := y
+		y += len(parts)
 		if x >= w-1 {
 			continue
 		}
-		vis := ansi.Truncate(txt, w-1-x, "")
-		ls = append(ls, lipgloss.NewLayer(m.toastStyle(t).Render(vis)).X(x).Y(topRows+i).Z(5))
+		st := m.toastStyle(t)
+		for k, p := range parts {
+			if top+k >= m.height-bottomRows {
+				break
+			}
+			txt := widgets.Fit(" "+p, tw)
+			vis := ansi.Truncate(txt, w-1-x, "")
+			ls = append(ls, lipgloss.NewLayer(st.Render(vis)).X(x).Y(top+k).Z(5))
+		}
 	}
 	return ls
 }
@@ -153,10 +165,12 @@ func (m *Model) box(title string, body []string, w int) string {
 	sb.WriteString(th.Title.Render(t))
 	sb.WriteString(th.Border.Render(strings.Repeat("─", max(0, inner-1-widgets.Width(t))) + "╮"))
 	for _, l := range body {
-		sb.WriteByte('\n')
-		sb.WriteString(th.Border.Render("│"))
-		sb.WriteString(widgets.Fit(l, inner))
-		sb.WriteString(th.Border.Render("│"))
+		for _, p := range widgets.WrapHang(l, inner, 1) {
+			sb.WriteByte('\n')
+			sb.WriteString(th.Border.Render("│"))
+			sb.WriteString(widgets.Fit(p, inner))
+			sb.WriteString(th.Border.Render("│"))
+		}
 	}
 	sb.WriteByte('\n')
 	sb.WriteString(th.Border.Render("╰" + strings.Repeat("─", inner) + "╯"))
@@ -167,20 +181,28 @@ var helpTabIDs = [numTabs]string{"businesses", "models", "market", "infra", "res
 
 func (m *Model) helpEntries(dst []string) []string {
 	th := m.th
-	line := func(key string) string {
+	descW := max(8, min(helpW, m.width-2)-3-helpKeyW)
+	pad := strings.Repeat(" ", 1+helpKeyW)
+	add := func(key string) {
 		k, desc, _ := strings.Cut(m.cat.T(key), "|")
-		return " " + th.Key.Render(widgets.Fit(k, helpKeyW)) + th.Text.Render(desc)
+		for i, p := range widgets.Wrap(desc, descW) {
+			if i == 0 {
+				dst = append(dst, " "+th.Key.Render(m.cell(k, helpKeyW))+th.Text.Render(p))
+				continue
+			}
+			dst = append(dst, pad+th.Text.Render(p))
+		}
 	}
 	pre := "ui.help." + helpTabIDs[m.tab] + "."
 	if m.cat.Has(pre + "1") {
 		dst = append(dst, " "+th.Gold.Render(strings.ToUpper(m.cat.T(tabKeys[m.tab]))))
 		for i := 1; m.cat.Has(pre + strconv.Itoa(i)); i++ {
-			dst = append(dst, line(pre+strconv.Itoa(i)))
+			add(pre + strconv.Itoa(i))
 		}
 		dst = append(dst, "", " "+th.Gold.Render(m.cat.T("ui.help.general")))
 	}
 	for i := 1; m.cat.Has("ui.help." + strconv.Itoa(i)); i++ {
-		dst = append(dst, line("ui.help."+strconv.Itoa(i)))
+		add("ui.help." + strconv.Itoa(i))
 	}
 	return dst
 }
@@ -191,6 +213,9 @@ func (m *Model) helpKey(k string) {
 	n := len(m.helpEntries(m.lines[:0]))
 	maxTop := max(0, n-m.helpRows())
 	switch k {
+	case "t":
+		m.openTutorial()
+		return
 	case "?", "esc", "enter":
 		m.help = false
 	case "up", "k":

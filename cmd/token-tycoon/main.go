@@ -178,7 +178,7 @@ func play(b *balance.Balance, o playOpts, stdout, stderr io.Writer) int {
 	}
 	m := ui.New(ui.Config{
 		Balance: b, State: st, Catalog: cat, Profile: profile, Debug: o.debug,
-		Save: write, OfflineElapsed: elapsed, Notice: noticeText, Now: now,
+		Save: write, OfflineElapsed: elapsed, Notice: noticeText, NewGame: notice.fresh, Now: now,
 	})
 	popts := []tea.ProgramOption{tea.WithOutput(stdout), tea.WithFPS(b.Engine.FPSAnimation)}
 	if o.noColor {
@@ -197,7 +197,10 @@ func play(b *balance.Balance, o playOpts, stdout, stderr io.Writer) int {
 	return code
 }
 
-type notice struct{ key, arg string }
+type notice struct {
+	key, arg string
+	fresh    bool
+}
 
 func loadGame(path string, b *balance.Balance) (*sim.State, float64, notice, error) {
 	l, err := save.Load(path, b, b.Engine.Backups)
@@ -205,18 +208,18 @@ func loadGame(path string, b *balance.Balance) (*sim.State, float64, notice, err
 	case err == nil:
 		var n notice
 		if l.Recovered() {
-			n = notice{"msg.save_recovered", l.Source}
+			n = notice{key: "msg.save_recovered", arg: l.Source}
 		}
 		return l.State, max(0, now().Sub(l.SavedAt).Seconds()), n, nil
 	case errors.Is(err, save.ErrNewerVersion):
 		return nil, 0, notice{}, err
 	case errors.Is(err, save.ErrNoSave):
 		s := sim.NewState(b, uint64(now().UnixNano()))
-		return &s, 0, notice{}, nil
+		return &s, 0, notice{fresh: true}, nil
 	}
 	if rerr := os.Rename(path, path+".corrupt"); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
 		return nil, 0, notice{}, rerr
 	}
 	s := sim.NewState(b, uint64(now().UnixNano()))
-	return &s, 0, notice{"ui.msg.save_corrupt", path + ".corrupt"}, nil
+	return &s, 0, notice{key: "ui.msg.save_corrupt", arg: path + ".corrupt"}, nil
 }

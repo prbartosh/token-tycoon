@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/x/ansi"
-
 	"token-tycoon/internal/econ"
 	"token-tycoon/internal/format"
 	"token-tycoon/internal/i18n"
@@ -20,30 +18,36 @@ type lines struct {
 	w   int
 }
 
-func (l *lines) add(s string) { l.out = append(l.out, " "+s) }
+func (l *lines) add(s string) {
+	s = " " + s
+	if widgets.Width(s) <= l.w {
+		l.out = append(l.out, s)
+		return
+	}
+	l.out = append(l.out, widgets.WrapHang(s, l.w, min(1+labelW, l.w/3))...)
+}
 
 func (l *lines) blank() { l.out = append(l.out, "") }
 
 func (l *lines) wrap(s string, st theme.Paint) {
-	for _, p := range strings.Split(ansi.Wrap(s, max(1, l.w-2), ""), "\n") {
-		l.add(st.Render(p))
+	for _, p := range widgets.Wrap(s, max(1, l.w-2)) {
+		l.out = append(l.out, " "+st.Render(p))
 	}
 }
 
 func (m *Model) label(key string) string {
-	return m.th.Dim.Render(widgets.Fit(m.cat.T(key), labelW))
+	return m.th.Dim.Render(m.cell(m.cat.T(key), labelW))
 }
 
-func (m *Model) labelText(s string) string { return m.th.Dim.Render(widgets.Fit(s, labelW)) }
+func (m *Model) labelText(s string) string { return m.th.Dim.Render(m.cell(s, labelW)) }
 
-func (m *Model) titleLine(name, right string, w int) string {
+func (m *Model) titleLine(name, right string) string {
 	th := m.th
 	r := ""
 	if right != "" {
 		r = th.Gold.Render(right)
 	}
-	nw := max(1, w-2-widgets.Width(right)-1)
-	return th.Bold.Render(widgets.Fit(strings.ToUpper(name), nw)) + " " + r
+	return th.Bold.Render(strings.ToUpper(name)) + " " + r
 }
 
 func (m *Model) detailLines(w, h int) []string {
@@ -69,7 +73,7 @@ func (m *Model) businessDetail(l *lines, i int) {
 	if bz.Owned > 0 {
 		right = "x" + strconv.Itoa(bz.Owned)
 	}
-	l.add(m.titleLine(m.bizName(i), right, l.w))
+	l.add(m.titleLine(m.bizName(i), right))
 	l.wrap(m.cat.T(i18n.BusinessDescKey(id)), th.Dim)
 	l.blank()
 	combo := max(1, m.s.Combo.Mult)
@@ -131,7 +135,7 @@ func (m *Model) adviceLine(l *lines, r row) {
 
 func (m *Model) lockedDetail(l *lines, i int) {
 	th := m.th
-	l.add(m.titleLine(m.bizName(i), "", l.w))
+	l.add(m.titleLine(m.bizName(i), ""))
 	l.wrap(m.cat.T(i18n.BusinessDescKey(m.b.Businesses[i].ID)), th.Dim)
 	l.blank()
 	need := m.b.Businesses[i].UnlockLifetime
@@ -142,7 +146,7 @@ func (m *Model) lockedDetail(l *lines, i int) {
 func (m *Model) upgradeDetail(l *lines, u int) {
 	th := m.th
 	up := &m.b.Upgrades[u]
-	l.add(m.titleLine(m.upgName(u), "", l.w))
+	l.add(m.titleLine(m.upgName(u), ""))
 	l.wrap(m.cat.T(i18n.UpgradeDescKey(up.ID)), th.Dim)
 	l.blank()
 	if m.s.Upgrades.Has(u) {

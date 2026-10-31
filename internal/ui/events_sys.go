@@ -289,7 +289,7 @@ func (m *Model) systemEvent(e *sim.Event, quiet bool) {
 		return
 	}
 	if toast {
-		a.Toast.Push(msg, kind, toastLife)
+		a.Toast.Push(msg, kind, m.toastS(msg))
 	} else {
 		m.setStatus(msg, false)
 	}

@@ -15,6 +15,8 @@ import (
 const (
 	Tiers     = balance.MaxBusinesses
 	FlowSteps = 16
+	MixMax    = 5
+	mixStride = 3
 	FadeSteps = 6
 )
 
@@ -56,6 +58,7 @@ type Theme struct {
 
 	Tier     [Tiers]Paint
 	Flow     [Tiers][FlowSteps]Paint
+	Mix      [Tiers][MixMax][FlowSteps]Paint
 	Fade     [FadeSteps]Paint
 	GoldFade [FadeSteps]Paint
 }
@@ -173,6 +176,11 @@ func New(c balance.Colors, p colorprofile.Profile) *Theme {
 			}
 		}
 	}
+	for i := range Tiers {
+		for j := range MixMax {
+			t.Mix[i][j] = mixRow(pl, base, c.TierGradient, c.MoneyFrom, i, j+2)
+		}
+	}
 	fade := lipgloss.Blend1D(FadeSteps, lipgloss.Color(c.MoneyTo), lipgloss.Color(c.Dim))
 	goldFade := lipgloss.Blend1D(FadeSteps, lipgloss.Color(c.Gold), lipgloss.Color(c.Dim))
 	for k := range FadeSteps {
@@ -180,4 +188,32 @@ func New(c balance.Colors, p colorprofile.Profile) *Theme {
 		t.GoldFade[k] = paintOf(fg(base, pl.conv(goldFade[min(k, len(goldFade)-1)])).Bold(true))
 	}
 	return t
+}
+
+func mixRow(pl palette, base lipgloss.Style, grad []string, fallback string, tier, n int) [FlowSteps]Paint {
+	var row [FlowSteps]Paint
+	stops := make([]color.Color, 0, n+1)
+	for j := range n {
+		hex := fallback
+		if len(grad) > 0 {
+			hex = grad[(tier+j*mixStride)%len(grad)]
+		}
+		c := lipgloss.Color(hex)
+		if j%2 == 0 {
+			c = lipgloss.Lighten(c, 0.15)
+		} else {
+			c = lipgloss.Darken(c, 0.3)
+		}
+		stops = append(stops, c)
+	}
+	stops = append(stops, stops[0])
+	blend := lipgloss.Blend1D(FlowSteps+1, stops...)
+	mark := max(2, FlowSteps/n)
+	for k := range FlowSteps {
+		row[k] = paintOf(fg(base, pl.conv(blend[min(k, len(blend)-1)])))
+		if pl.plain && k%mark == 0 {
+			row[k] = paintOf(base.Bold(true))
+		}
+	}
+	return row
 }

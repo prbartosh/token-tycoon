@@ -31,6 +31,7 @@ const (
 	pcAdvisor
 	pcBell
 	pcHelp
+	pcTutorial
 	pcQuit
 )
 
@@ -53,6 +54,7 @@ var palEntries = [...]palEntry{
 	{pcAdvisor, "ui.cmd.advisor"},
 	{pcBell, "ui.cmd.bell"},
 	{pcHelp, "ui.cmd.help"},
+	{pcTutorial, "ui.cmd.tutorial"},
 	{pcQuit, "ui.cmd.quit"},
 }
 
@@ -336,6 +338,8 @@ func (m *Model) runPalette(it palItem) tea.Cmd {
 		m.toggleBell()
 	case pcHelp:
 		m.openHelp()
+	case pcTutorial:
+		m.openTutorial()
 	case pcQuit:
 		return tea.Quit
 	}
@@ -352,7 +356,7 @@ func (m *Model) paletteBox() string {
 	}
 	top := max(0, min(p.sel-rows+1, len(p.items)-rows))
 	for i := top; i < len(p.items) && i < top+rows; i++ {
-		txt := widgets.Fit(p.items[i].label, w-6)
+		txt := p.items[i].label
 		if i == p.sel {
 			body = append(body, th.Marker.Render(" > ")+th.Selected.Render(txt))
 		} else {

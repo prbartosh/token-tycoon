@@ -6,6 +6,7 @@ package ui
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -29,6 +30,7 @@ type Config struct {
 	Save           func(*sim.State) error
 	OfflineElapsed float64
 	Notice         string
+	NewGame        bool
 	Now            func() time.Time
 }
 
@@ -49,7 +51,12 @@ const (
 	minHeight    = 14
 	catchUpLimit = 60 * time.Second
 	doubleClick  = 400 * time.Millisecond
-	statusFor    = 3 * time.Second
+	readBaseS    = 5.0
+	readPerRuneS = 0.06
+	readMaxS     = 12.0
+	tickerPauseS = 2.0
+	tickerCPS    = 8.0
+	tickerKeyLen = 24
 	newsEvery    = 20 * time.Second
 	logCap       = 64
 	sparkLen     = 60
@@ -116,7 +123,9 @@ type Model struct {
 
 	status     string
 	statusAt   time.Time
+	statusFor  time.Duration
 	statusWarn bool
+	ticker     ticker
 	log        []string
 	newsIdx    int
 	newsAt     time.Time
@@ -131,6 +140,7 @@ type Model struct {
 	tsel     [numTabs]tkey
 	tscroll  [numTabs]int
 	trows    []trow
+	wrapped  []trow
 	draft    trainDraft
 	modal    modal
 	retiring string
@@ -139,6 +149,7 @@ type Model struct {
 	cer      ceremony
 	ring     bool
 	pal      palette
+	tut      tutorial
 	later    bool
 	helpTop  int
 	hist     history
@@ -171,6 +182,7 @@ func New(cfg Config) *Model {
 		log:     make([]string, 0, logCap),
 		rows:    make([]row, 0, 32),
 		trows:   make([]trow, 0, 64),
+		wrapped: make([]trow, 0, 64),
 		lines:   make([]string, 0, 64),
 		step:    time.Duration(max(1, b.Engine.SimStepMs)) * time.Millisecond,
 		sel:     row{kind: rowBusiness, idx: 0},
@@ -187,6 +199,9 @@ func New(cfg Config) *Model {
 		m.setStatus(cfg.Notice, false)
 	}
 	m.refreshAdvisor()
+	if cfg.NewGame && !m.s.Settings.TutorialDone {
+		m.tut.open = true
+	}
 	return m
 }
 
@@ -375,7 +390,16 @@ func (m *Model) exec(c sim.Command) tea.Cmd {
 
 func (m *Model) setStatus(s string, warn bool) {
 	m.status, m.statusAt, m.statusWarn = s, m.now(), warn
+	secs := m.toastS(s)
+	if over := widgets.Width(s) - m.newsRoom(); m.width > 0 && over > 0 {
+		secs = max(secs, 2*tickerPauseS+float64(over)/tickerCPS)
+	}
+	m.statusFor = time.Duration(secs * float64(time.Second))
 }
+
+func readS(s string) float64 { return readPerRuneS * float64(utf8.RuneCountInString(s)) }
+
+func (m *Model) toastS(s string) float64 { return min(readMaxS, readBaseS+readS(s)) }
 
 func (m *Model) addLog(s string) {
 	if len(m.log) == logCap {

@@ -15,8 +15,7 @@ const (
 	flashCrit      = 0.3
 	flashWarn      = 0.25
 	floatLife      = 0.3
-	critLife       = 0.6
-	toastLife      = 3.0
+	critHoldS      = 4.0
 	floatGap       = 0.25
 	floatRise      = 3
 )
@@ -42,7 +41,7 @@ func (m *Model) event(e *sim.Event, quiet bool) {
 		msg := m.cat.T("msg.unlock", m.unlockName(u))
 		m.addLog(msg)
 		if !quiet {
-			a.Toast.Push(msg, anim.KindMilestone, toastLife)
+			a.Toast.Push(msg, anim.KindMilestone, m.toastS(msg))
 		}
 	}
 	if e.Kind >= sim.EvRack {
@@ -65,7 +64,8 @@ func (m *Model) event(e *sim.Event, quiet bool) {
 	case sim.EvCrit:
 		txt := m.cat.T("msg.crit", format.Number(m.b.Crit.Mult, format.Letters))
 		a.Flash.Start(e.Business, anim.KindCrit, flashCrit)
-		a.Float.Spawn(e.Business, txt+" +"+m.num(e.Amount), anim.KindCrit, critLife, floatRise)
+		txt += " +" + m.num(e.Amount)
+		a.Float.Replace(e.Business, txt, anim.KindCrit, critHoldS+readS(txt), 0)
 		m.addLog(m.bizName(e.Business) + ": " + txt)
 	case sim.EvPurchase:
 		a.Flash.Start(e.Business, anim.KindPurchase, flashPurchase)
@@ -74,12 +74,13 @@ func (m *Model) event(e *sim.Event, quiet bool) {
 		id := m.b.Businesses[e.Business].ID
 		msg := m.cat.T("msg.manager", m.cat.T(i18n.ManagerKey(id)), m.cat.T(i18n.ManagerLineKey(id)))
 		a.Flash.Start(e.Business, anim.KindPurchase, flashPurchase)
-		a.Toast.Push(msg, anim.KindInfo, toastLife)
+		a.Toast.Push(msg, anim.KindInfo, m.toastS(msg))
 		m.addLog(msg)
 	case sim.EvUpgrade:
 		msg := m.cat.T("msg.upgrade", m.upgName(e.Index))
 		a.Flash.Start(upgradeSlot(e.Index), anim.KindPurchase, flashPurchase)
-		a.Toast.Push(msg, anim.KindInfo, toastLife)
+		a.Toast.Push(msg, anim.KindInfo, m.toastS(msg))
+		m.followUpgrade(e.Index)
 		m.addLog(msg)
 	case sim.EvMilestoneSpeed, sim.EvMilestoneProfit:
 		key := "msg.milestone.speed"
@@ -88,14 +89,14 @@ func (m *Model) event(e *sim.Event, quiet bool) {
 		}
 		msg := m.cat.T(key, m.bizName(e.Business), e.Index, m.num(e.Amount))
 		a.Flash.Start(e.Business, anim.KindMilestone, flashMilestone)
-		a.Toast.Push(msg, anim.KindMilestone, toastLife)
+		a.Toast.Push(msg, anim.KindMilestone, m.toastS(msg))
 		m.addLog(msg)
 	case sim.EvMilestoneGlobal:
 		msg := m.cat.T("msg.milestone.global", e.Index, m.num(e.Amount))
 		for i := range sim.N {
 			a.Flash.Start(i, anim.KindMilestone, flashMilestone)
 		}
-		a.Toast.Push(msg, anim.KindMilestone, toastLife)
+		a.Toast.Push(msg, anim.KindMilestone, m.toastS(msg))
 		m.addLog(msg)
 	case sim.EvUndo:
 		m.setStatus(m.cat.T("msg.undo", m.undoName(e), m.money(e.Amount)), false)

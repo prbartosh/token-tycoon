@@ -56,9 +56,10 @@ type tkey struct {
 type trow struct {
 	text string
 	key  tkey
+	cont bool
 }
 
-func (r trow) selectable() bool { return r.key.act != actNone }
+func (r trow) selectable() bool { return r.key.act != actNone && !r.cont }
 
 type tabList struct {
 	rows []trow
@@ -75,6 +76,7 @@ func (t *tabList) item(a act, i int, s string) {
 
 const (
 	colLabel   = 14
+	contIndent = 2
 	colOwned   = 7
 	trainStep  = 0.25
 	shareStep  = 0.1
@@ -90,7 +92,12 @@ func (m *Model) section(t *tabList, title string) {
 	t.text(m.th.Dim.Render("──" + ttl + strings.Repeat("─", max(0, t.w-4-widgets.Width(ttl)))))
 }
 
-func (m *Model) cell(s string, w int) string { return widgets.Fit(s, w) }
+func (m *Model) cell(s string, w int) string {
+	if widgets.Width(s) > w {
+		return s + " "
+	}
+	return widgets.Fit(s, w)
+}
 
 func (m *Model) mainWidth() int { return m.panelWidths(m.geom())[0] }
 
@@ -128,7 +135,25 @@ func (m *Model) tabRows(w int) []trow {
 		m.rulesRows(t)
 	}
 	m.trows = t.rows
-	return t.rows
+	m.wrapped = m.wrapRows(m.wrapped[:0], t.rows, w-2)
+	return m.wrapped
+}
+
+func (m *Model) wrapRows(dst, rs []trow, w int) []trow {
+	for _, r := range rs {
+		if widgets.Width(r.text) <= w {
+			dst = append(dst, r)
+			continue
+		}
+		for i, l := range widgets.WrapHang(r.text, w, contIndent) {
+			if i == 0 {
+				dst = append(dst, trow{text: l, key: r.key})
+				continue
+			}
+			dst = append(dst, trow{text: l, key: r.key, cont: true})
+		}
+	}
+	return dst
 }
 
 func (m *Model) lockedRows(t *tabList) {
@@ -165,11 +190,15 @@ func (m *Model) tabLines(w, h int) []string {
 	si := m.tabSelIndex(rs)
 	sc := m.tscroll[m.tab]
 	if si >= 0 {
+		end := si
+		for end+1 < len(rs) && rs[end+1].cont {
+			end++
+		}
+		if end >= sc+h {
+			sc = end - h + 1
+		}
 		if si < sc {
 			sc = si
-		}
-		if si >= sc+h {
-			sc = si - h + 1
 		}
 	}
 	sc = max(0, min(sc, len(rs)-h))

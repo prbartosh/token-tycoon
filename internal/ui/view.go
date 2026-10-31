@@ -4,12 +4,14 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"token-tycoon/internal/balance"
+	"token-tycoon/internal/econ"
 	"token-tycoon/internal/format"
 	"token-tycoon/internal/i18n"
 	"token-tycoon/internal/sim"
@@ -22,7 +24,7 @@ const (
 	labelW     = 11
 	valueW     = 9
 	ownedW     = 5
-	nameMax    = 20
+	nameMax    = 28
 	nameMin    = 8
 	minBarW    = 4
 	toastMaxW  = 48
@@ -352,7 +354,13 @@ func (m *Model) body(lines []string, g geometry) []string {
 }
 
 func (m *Model) nameWidth(w int) int {
-	return max(nameMin, min(nameMax, w-2-1-ownedW-1-minBarW-1-valueW))
+	longest := nameMin
+	for _, r := range m.rows {
+		if r.kind == rowBusiness || r.kind == rowLocked {
+			longest = max(longest, widgets.Width(m.bizName(r.idx)))
+		}
+	}
+	return max(nameMin, min(longest, nameMax, w-2-1-ownedW-1-minBarW-1-valueW))
 }
 
 func (m *Model) listLines(w, h int) []string {
@@ -474,6 +482,12 @@ func (m *Model) rowLine(r row, selected bool, w int) string {
 		sb.WriteByte(' ')
 		need := m.b.Businesses[i].UnlockLifetime
 		txt := m.cat.T("ui.biz.locked", m.money(need), m.etaLifetime(need))
+		if widgets.Width(txt) > barW+1+valueW {
+			txt = m.cat.T("ui.biz.locked_short", m.money(need))
+		}
+		if widgets.Width(txt) > barW+1+valueW {
+			txt = m.money(need)
+		}
 		sb.WriteString(th.Dim.Render(widgets.Fit(txt, barW+1+valueW)))
 	case bz.Owned == 0:
 		sb.WriteString(th.Dim.Render(widgets.Fit("--", ownedW)))
@@ -502,8 +516,14 @@ func (m *Model) cycleBar(i, w int) string {
 	}
 	tier := min(i, theme.Tiers-1)
 	var sb strings.Builder
-	if m.s.Derived.Continuous[i] && (m.s.Businesses[i].Manager || m.s.Businesses[i].Running) {
-		widgets.Flow(&sb, w, int(m.s.Clock*10), m.th.Flow[tier][:])
+	bz := &m.s.Businesses[i]
+	maxed := m.speedMaxed(i)
+	if (m.s.Derived.Continuous[i] || maxed) && (bz.Manager || bz.Running) {
+		styles := m.th.Flow[tier][:]
+		if n := m.extraColors(i); maxed && n > 0 {
+			styles = m.th.Mix[tier][n-1][:]
+		}
+		widgets.Flow(&sb, w, int(m.s.Clock*10), styles)
 		return sb.String()
 	}
 	frac := m.s.Businesses[i].Progress
@@ -512,6 +532,20 @@ func (m *Model) cycleBar(i, w int) string {
 	}
 	widgets.Bar(&sb, frac, w)
 	return m.th.Tier[tier].Render(sb.String())
+}
+
+func (m *Model) speedMaxed(i int) bool {
+	n := len(m.b.Milestones.SpeedThresholds)
+	return n > 0 && m.s.Derived.SpeedMS[i] >= n
+}
+
+func (m *Model) extraColors(i int) int {
+	ms := &m.b.Milestones
+	if !m.speedMaxed(i) {
+		return 0
+	}
+	last := ms.SpeedThresholds[len(ms.SpeedThresholds)-1]
+	return max(0, min(theme.MixMax, m.s.Derived.ProfitMS[i]-econ.ProfitMilestones(last, ms.ProfitStart, ms.ProfitEvery)))
 }
 
 func (m *Model) valueCell(i int) string {
@@ -629,6 +663,17 @@ func (m *Model) wrapLog(out []string, w, h int) []string {
 	return out
 }
 
+type ticker struct {
+	key string
+	at  time.Time
+}
+
+func (m *Model) newsPrefix() string { return " " + m.th.Gold.Render(m.cat.T("ui.news.label")) + "  " }
+
+func (m *Model) newsRoom() int {
+	return m.width - 2 - widgets.Width(" "+m.cat.T("ui.news.label")+"  ")
+}
+
 func (m *Model) newsLine(w int) string {
 	th := m.th
 	txt, warn := m.newsText()
@@ -639,9 +684,33 @@ func (m *Model) newsLine(w int) string {
 			txt = "! " + txt
 		}
 	}
-	inner := " " + th.Gold.Render(m.cat.T("ui.news.label")) + "  " + st.Render(txt)
+	since := time.Time{}
+	if m.statusLive() && strings.HasSuffix(txt, m.status) {
+		since = m.statusAt
+	}
+	txt = m.scrollNews(txt, m.newsRoom(), since)
+	inner := m.newsPrefix() + st.Render(txt)
 	bar := th.Border.Render("│")
 	return bar + widgets.Fit(inner, w-2) + bar
+}
+
+func (m *Model) scrollNews(txt string, room int, since time.Time) string {
+	key := txt[:min(len(txt), tickerKeyLen)]
+	now := m.now()
+	if key != m.ticker.key {
+		m.ticker = ticker{key: key, at: now}
+	}
+	if !since.IsZero() {
+		m.ticker.at = since
+	}
+	over := widgets.Width(txt) - room
+	if over <= 0 || room <= 0 {
+		return txt
+	}
+	cycle := 2*tickerPauseS + float64(over)/tickerCPS
+	el := math.Mod(now.Sub(m.ticker.at).Seconds(), cycle)
+	off := min(over, max(0, int((el-tickerPauseS)*tickerCPS)))
+	return ansi.Cut(txt, off, off+room)
 }
 
 func (m *Model) newsText() (string, bool) {
@@ -655,7 +724,7 @@ func (m *Model) newsText() (string, bool) {
 	if m.s.Poach.Active {
 		return m.cat.T("ui.poach.banner", m.staffName(m.s.Poach.Index), m.dur(sim.PoachLeft(m.s))), true
 	}
-	if m.status != "" && m.now().Sub(m.statusAt) < statusFor {
+	if m.statusLive() {
 		return m.status, m.statusWarn
 	}
 	if ev >= 0 {
@@ -668,6 +737,10 @@ func (m *Model) newsText() (string, bool) {
 		return m.cat.T("ui.hint.grant", g.Day, m.money(g.Amount)), false
 	}
 	return m.headline(), false
+}
+
+func (m *Model) statusLive() bool {
+	return m.status != "" && m.now().Sub(m.statusAt) < m.statusFor
 }
 
 func (m *Model) eventBanner(ev int, left float64) string {
@@ -694,6 +767,8 @@ func (m *Model) keyItems() []string {
 	c := m.cat
 	items := make([]string, 0, 12)
 	switch {
+	case m.tut.open:
+		return append(items, c.T("ui.tut.next"), c.T("ui.tut.back"), c.T("ui.tut.skip"), c.T("key.quit"))
 	case m.pal.open:
 		return append(items, c.T("ui.key.run"), c.T("ui.key.close"))
 	case m.away.open:

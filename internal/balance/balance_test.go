@@ -79,8 +79,8 @@ value = 2
 	if b.Businesses[0].Cost != 10 {
 		t.Errorf("api_wrapper changed: %+v", b.Businesses[0])
 	}
-	if len(b.Upgrades) != 10 {
-		t.Errorf("upgrades = %d, want 10 (appended)", len(b.Upgrades))
+	if len(b.Upgrades) != len(base.Upgrades)+1 {
+		t.Errorf("upgrades = %d, want %d (appended)", len(b.Upgrades), len(base.Upgrades)+1)
 	}
 }
 

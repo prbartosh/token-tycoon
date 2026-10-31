@@ -107,6 +107,25 @@ func (m *Model) ensureVisible() {
 	m.scroll = max(0, min(m.scroll, len(rs)-h))
 }
 
+func (m *Model) followUpgrade(u int) {
+	if m.sel != (row{kind: rowUpgrade, idx: u}) {
+		return
+	}
+	next := -1
+	for v := range m.b.Upgrades {
+		if !m.s.Upgrades.Has(v) {
+			next = v
+			if v > u {
+				break
+			}
+		}
+	}
+	if next >= 0 {
+		m.sel = row{kind: rowUpgrade, idx: next}
+	}
+	m.ensureVisible()
+}
+
 func (m *Model) listHeight() int { return m.height - topRows - bottomRows }
 
 type advice struct {

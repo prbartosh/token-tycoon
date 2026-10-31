@@ -48,11 +48,23 @@ Język można też zmienić w grze (paleta komend, `ustawienia`). Zapis następu
 | r | reakcja na incydent safety (10 s): zamiast utraty hype premia reputacji |
 | d | dzienny grant |
 | n, a, c | notacja liczb, doradca, symbole dla daltonistów |
-| : , Ctrl+P | paleta komend z wyszukiwaniem rozmytym (PL i EN): `kup rag 50`, `kup max`, `trenuj`, `idź badania`, `prestiż podgląd`, `runda finansowania podgląd`, `polityki`, `zapisz`, `ustawienia` (język na żywo, notacja, daltonizm, doradca, dzwonek), `pomoc`, `wyjdź` |
+| : , Ctrl+P | paleta komend z wyszukiwaniem rozmytym (PL i EN): `kup rag 50`, `kup max`, `trenuj`, `idź badania`, `prestiż podgląd`, `runda finansowania podgląd`, `polityki`, `zapisz`, `ustawienia` (język na żywo, notacja, daltonizm, doradca, dzwonek), `pomoc`, `samouczek`, `wyjdź` |
 | Esc | zamyka okno, pomija ceremonię (prestiż, premiera, runda; ceremonie nie blokują klawiszy) |
-| ? | pomoc kontekstowa (najpierw klawisze bieżącej zakładki) |
+| ? | pomoc kontekstowa (najpierw klawisze bieżącej zakładki); w pomocy t otwiera samouczek |
 | q, Ctrl+C | zapis i wyjście |
 | mysz | klik zaznacza wiersz i zakładkę, podwójny klik wykonuje akcję główną, kółko przewija |
+
+### Samouczek
+
+Przy pierwszym uruchomieniu (brak pliku zapisu) gra pokazuje krótki samouczek w 7 krokach: Enter i zakup, Spacja i combo, menedżer (m), zakładki (← → i 1 do 7), paleta (: lub Ctrl+P), pomoc (?), zapis i gra offline. Każdy krok wskazuje miejsce na ekranie. Enter, Spacja lub → przechodzą dalej, ← wraca, Esc pomija. Gdy samouczek jest otwarty, klawisze nie trafiają do gry (zegar gry biegnie). Ukończenie lub pominięcie zapisuje `settings.tutorial_done`, istniejące zapisy nigdy go nie pokazują. Ponownie: paleta `samouczek` / `tutorial` albo t w oknie pomocy.
+
+### Czytelność
+
+- Powiadomienia (toasty) trwają 5 s plus 60 ms na znak (najwyżej 12 s), dłuższe zawijają się do kilku linii; nadmiarowe czekają w kolejce zamiast znikać, a gdy kolejka czeka, każdy widoczny toast zostaje co najmniej 4 s.
+- Komunikaty na pasku NEWS trwają tak samo długo; tekst szerszy niż pasek przewija się poziomo (pauza 2 s, 8 znaków/s).
+- Napis TOKEN BURST nad biznesem zostaje 4 s plus czas czytania, kolejne bursty tego samego biznesu odświeżają jeden napis.
+- Teksty opisowe (szczegóły, pomoc, okna, paleta, wiersze zakładek) zawijają się zamiast kończyć „…”. Ucięcie zostaje tylko w kolumnie nazw listy biznesów i ulepszeń, pełna nazwa jest w panelu szczegółów.
+- Pasek cyklu: po zdobyciu wszystkich milestone'ów prędkości (`speed_thresholds`) zamienia się w płynącą animację jak w trybie ciągłym; każdy kolejny milestone przychodu dokłada kolor (do 6 kolorów, kolory na przemian jaśniejsze i ciemniejsze, w trybie bez kolorów wzór pogrubień).
 
 W oknach potwierdzeń (prestiż, runda, wycofanie modelu, usunięcie z archiwum) Enter lub y zatwierdza, Esc lub n anuluje.
 
@@ -60,11 +72,11 @@ Limit 3 modeli (DECISIONS 13b): gdy ręcznie rozpoczęty trening kończy się pr
 
 ## Systemy M4
 
-- **Talent** (zakładka Modele, od łącznie 4e20): junior, senior, gwiazda; pensja jako procent przychodu, premia do szybkości badań i treningu, gwiazda z losową cechą (szybki, perfekcjonista, ewangelista, oszczędny). Opłata rekrutacyjna w minutach najlepszego przychodu w historii (jak SMR), więc zatrudnianie tuż po prestiżu nie jest darmowe. Podkupienie: 60 s na kontrofertę (`o`), podwójna pensja przez 3 dni zegara gry. Offline nikt nie odchodzi.
-- **Kontrakty enterprise** (zakładka Rynek, od 8.4e20): do 3 ofert na tablicy, do 3 aktywnych (więcej z badań). Wolumen = 1.5 do 4 × stała produkcja × czas (dostawa liczy stałą produkcję: bez combo, krytyków i boostów zdarzeń, DECISIONS 14a). Nagroda w minutach przychodu plus reputacja, porażka tylko obniża reputację. Termin stoi w miejscu, gdy gra jest offline.
-- **Runda finansowania** (`P`, od łącznie 6.6e33): kapitał = floor(5 × (log10(przychód od ostatniej rundy) − 30)^1.5), resetuje to co prestiż 1 oraz parametry, numer wersji i aktywne kontrakty. Bonus parametrów przechodzi do trwałego mnożnika rund (DECISIONS 20); ceremonia z licznikiem wyceny.
+- **Talent** (zakładka Modele, od łącznie 1.5e20): junior, senior, gwiazda; pensja jako procent przychodu, premia do szybkości badań i treningu, gwiazda z losową cechą (szybki, perfekcjonista, ewangelista, oszczędny). Opłata rekrutacyjna w minutach najlepszego przychodu w historii (jak SMR), więc zatrudnianie tuż po prestiżu nie jest darmowe. Podkupienie: 60 s na kontrofertę (`o`), podwójna pensja przez 3 dni zegara gry. Offline nikt nie odchodzi.
+- **Kontrakty enterprise** (zakładka Rynek, od 2e20): do 3 ofert na tablicy, do 3 aktywnych (więcej z badań). Wolumen = 1.5 do 4 × stała produkcja × czas (dostawa liczy stałą produkcję: bez combo, krytyków i boostów zdarzeń, DECISIONS 14a). Nagroda w minutach przychodu plus reputacja, porażka tylko obniża reputację. Termin stoi w miejscu, gdy gra jest offline.
+- **Runda finansowania** (`P`, od łącznie 8.3e33): kapitał = floor(5 × (log10(przychód od ostatniej rundy) − 30)^1.5), resetuje to co prestiż 1 oraz parametry, numer wersji i aktywne kontrakty. Bonus parametrów przechodzi do trwałego mnożnika rund (DECISIONS 20); ceremonia z licznikiem wyceny.
 - **Badania** (zakładka Badania): 34 węzły w 6 gałęziach (`[[research_node]]` w `balance.toml`), kupowane kapitałem VC, czas badania skracany przez talent.
-- **Polityki** (zakładka Polityki, od 2.7e37): kreator z listami wyboru (Enter na „+ nowa polityka”), do 2 warunków (I) i jedna akcja, sloty 3 do 12 z badań, kolejność = priorytet, ocena co 1 s, log wykonania; offline tylko z badaniem „Polityki offline”.
+- **Polityki** (zakładka Polityki, od 1e39): kreator z listami wyboru (Enter na „+ nowa polityka”), do 2 warunków (I) i jedna akcja, sloty 3 do 12 z badań, kolejność = priorytet, ocena co 1 s, log wykonania; offline tylko z badaniem „Polityki offline”.
 
 ## Systemy M5
 

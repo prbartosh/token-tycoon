@@ -20,6 +20,10 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k == "q" {
 		return m, tea.Quit
 	}
+	if m.tut.open {
+		m.tutKey(k)
+		return m, nil
+	}
 	if cmd, ok := m.reaction(k); ok {
 		return m, cmd
 	}
@@ -175,6 +179,12 @@ func (m *Model) willStart(i int) bool {
 }
 
 func (m *Model) click(ms tea.Mouse) tea.Cmd {
+	if m.tut.open {
+		if ms.Button == tea.MouseLeft {
+			m.tutNext()
+		}
+		return nil
+	}
 	if m.pal.open {
 		m.closePalette()
 		return nil
@@ -240,6 +250,9 @@ func (m *Model) tabClick(ms tea.Mouse, g geometry) tea.Cmd {
 	}
 	rs := m.tabRows(m.mainWidth())
 	ri := m.tscroll[m.tab] + ms.Y - topRows
+	for ri > 0 && ri < len(rs) && rs[ri].cont {
+		ri--
+	}
 	if ri < 0 || ri >= len(rs) || !rs[ri].selectable() {
 		return nil
 	}

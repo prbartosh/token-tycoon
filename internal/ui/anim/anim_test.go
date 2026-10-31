@@ -69,3 +69,51 @@ func TestToastSlidesIn(t *testing.T) {
 		t.Fatalf("toast not in after 250ms: %v", p)
 	}
 }
+
+func TestToastQueueKeepsMessages(t *testing.T) {
+	var ts Toasts
+	for i := range MaxToasts + 3 {
+		ts.Push(string(rune('a'+i)), KindInfo, 10)
+	}
+	if len(ts.Items()) != MaxToasts || ts.Pending() != 3 {
+		t.Fatalf("visible %d pending %d", len(ts.Items()), ts.Pending())
+	}
+	for range int((MinShow - 0.5) * 30) {
+		ts.Advance(1.0 / 30)
+	}
+	if ts.Items()[0].Text != "a" || ts.Items()[0].Age < MinShow-0.6 {
+		t.Fatal("first toast left before the minimum show time")
+	}
+	seen := map[string]bool{}
+	for range 30 * 60 {
+		for _, it := range ts.Items() {
+			seen[it.Text] = true
+		}
+		ts.Advance(1.0 / 30)
+	}
+	if len(seen) != MaxToasts+3 || ts.Pending() != 0 {
+		t.Fatalf("seen %d pending %d", len(seen), ts.Pending())
+	}
+}
+
+func TestLongFloaterHoldsAndRests(t *testing.T) {
+	var fs Floaters
+	fs.Replace(1, "burst", KindCrit, 5, 1)
+	fs.Replace(1, "burst 2", KindCrit, 5, 1)
+	n := 0
+	for _, f := range fs.Items() {
+		if f.Alive() {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("replace spawned %d", n)
+	}
+	for range 15 {
+		fs.Advance(1.0 / 30)
+	}
+	f := fs.Items()[0]
+	if fs.Active() || !fs.Alive() || f.Fade() != 0 || f.Offset() != 1 || f.Text != "burst 2" {
+		t.Fatalf("hold phase: active %v fade %v offset %d", fs.Active(), f.Fade(), f.Offset())
+	}
+}

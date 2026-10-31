@@ -9,7 +9,7 @@ import (
 )
 
 type candidate struct {
-	cmds [2]sim.Command
+	cmds [3]sim.Command
 	n    int
 	kind sim.PurchaseKind
 	idx  int
@@ -18,7 +18,7 @@ type candidate struct {
 	gain float64
 }
 
-func one(c sim.Command) ([2]sim.Command, int) { return [2]sim.Command{c}, 1 }
+func one(c sim.Command) ([3]sim.Command, int) { return [3]sim.Command{c}, 1 }
 
 func (bt *bot) effRate(h *sim.Hypo, managers *[sim.N]bool, d *sim.Derived) float64 {
 	sim.Evaluate(bt.b, h, d)
@@ -64,12 +64,7 @@ func (bt *bot) candidates(out []candidate) ([]candidate, float64) {
 			if k < 1 || (qi == 1 && k == 1) || k > 100 {
 				continue
 			}
-			h := base
-			h.Owned[i] += k
-			gain := bt.effRate(&h, &mgr, &d) - r0
-			c := candidate{kind: sim.PurchaseBusiness, idx: i, qty: k, cost: sim.BusinessCost(s, b, i, k), gain: gain}
-			c.cmds, c.n = one(sim.Buy(i, k))
-			out = append(out, c)
+			out = append(out, bt.businessCandidate(&base, &mgr, r0, i, k))
 		}
 		if owned > 0 && !mgr[i] {
 			mm := mgr
@@ -151,6 +146,65 @@ func (bt *bot) infraCandidates(out []candidate, base *sim.Hypo, mgr *[sim.N]bool
 	return out
 }
 
+func (bt *bot) businessCandidate(base *sim.Hypo, mgr *[sim.N]bool, r0 float64, i, k int) candidate {
+	var d sim.Derived
+	h := *base
+	h.Owned[i] += k
+	gain := bt.effRate(&h, mgr, &d) - r0
+	c := candidate{kind: sim.PurchaseBusiness, idx: i, qty: k, cost: sim.BusinessCost(&bt.s, bt.b, i, k), gain: gain}
+	c.cmds, c.n = one(sim.Buy(i, k))
+	if h.InfraOn && d.ComputeNeed > d.ComputeCap {
+		bt.addCompute(&c, &h, mgr, &d, r0)
+	}
+	return c
+}
+
+func (bt *bot) partialStep(pick *candidate) (candidate, bool) {
+	if pick.kind != sim.PurchaseBusiness || pick.qty < 2 {
+		return candidate{}, false
+	}
+	mgr := bt.managers()
+	base := sim.HypoOf(&bt.s)
+	var d sim.Derived
+	r0 := bt.effRate(&base, &mgr, &d)
+	for k := min(pick.qty-1, sim.MaxBuy(&bt.s, bt.b, pick.idx)); k >= 1; k-- {
+		c := bt.businessCandidate(&base, &mgr, r0, pick.idx, k)
+		if c.cost <= bt.s.Money && c.gain > 0 {
+			return c, true
+		}
+	}
+	return candidate{}, false
+}
+
+func (bt *bot) addCompute(c *candidate, h *sim.Hypo, mgr *[sim.N]bool, d *sim.Derived, r0 float64) {
+	s := &bt.s
+	b := bt.b
+	deficit := d.ComputeNeed - d.ComputeCap
+	best, bestGen, bestK, bestMW := math.Inf(1), 0, 0, 0.0
+	for gen := 1; gen <= s.Infra.GPUGen; gen++ {
+		g := &b.GPUGens[gen-1]
+		k := int(math.Ceil(deficit / g.Compute))
+		if k < 1 || k > 200 {
+			continue
+		}
+		mw := sim.GridNeededMW(s, b, float64(k)*g.MW)
+		if cost := sim.RackCost(s, b, gen, k) + sim.GridCost(b, mw); cost < best {
+			best, bestGen, bestK, bestMW = cost, gen, k, mw
+		}
+	}
+	if bestGen == 0 {
+		return
+	}
+	h.Infra.Racks[bestGen-1] += bestK
+	h.Infra.Energy.GridMW += bestMW
+	c.gain = bt.effRate(h, mgr, d) - r0
+	c.cost += best
+	c.cmds[1], c.n = sim.BuyRack(bestGen, bestK), 2
+	if bestMW > 0 {
+		c.cmds[2], c.n = sim.BuyGrid(bestMW), 3
+	}
+}
+
 func score(c *candidate, money, rate float64) float64 {
 	if !(c.gain > 0) {
 		return math.Inf(1)
@@ -188,7 +242,10 @@ func (bt *bot) maintainInfra() {
 	}
 }
 
-const minRunS = 600
+const (
+	minRunS     = 600
+	fillerSlack = 1.25
+)
 
 func (bt *bot) maybePrestige() bool {
 	pv := sim.Preview(&bt.s, bt.b)
@@ -231,6 +288,7 @@ func (bt *bot) decide() {
 		return
 	}
 	var buf [128]candidate
+	var partial candidate
 	for range 50 {
 		cands, rate := bt.candidates(buf[:0])
 		var pick *candidate
@@ -257,9 +315,17 @@ func (bt *bot) decide() {
 				return
 			}
 			if pick.cost > bt.s.Money {
+				if step, ok := bt.partialStep(pick); ok {
+					partial = step
+					pick = &partial
+					break
+				}
 				wait := (pick.cost - bt.s.Money) / rate
 				var filler *candidate
 				fb := wait
+				if bt.s.Prestige.ResetsL1 == 0 && pick.kind != sim.PurchaseManager {
+					fb = math.Max(wait, best*fillerSlack)
+				}
 				for i := range cands {
 					c := &cands[i]
 					if c.cost <= bt.s.Money && c.gain > 0 {

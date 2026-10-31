@@ -38,3 +38,34 @@ func TestSparklineAndFit(t *testing.T) {
 		t.Fatal("flow width")
 	}
 }
+
+func TestWrapKeepsTextAndStyles(t *testing.T) {
+	plain := "the quick brown fox jumps over the lazy dog"
+	ls := Wrap(plain, 10)
+	if len(ls) < 4 {
+		t.Fatalf("not wrapped: %q", ls)
+	}
+	for _, l := range ls {
+		if Width(l) > 10 {
+			t.Fatalf("line too wide: %q", l)
+		}
+	}
+	if strings.Join(ls, " ") != plain {
+		t.Fatalf("text lost: %q", ls)
+	}
+	styled := "\x1b[1m" + plain + "\x1b[m"
+	for i, l := range Wrap(styled, 12) {
+		if !strings.HasPrefix(l, "\x1b[1m") {
+			t.Fatalf("line %d lost style: %q", i, l)
+		}
+	}
+	hang := WrapHang(plain, 16, 4)
+	for i, l := range hang[1:] {
+		if !strings.HasPrefix(l, "    ") || Width(l) > 16 {
+			t.Fatalf("hang line %d: %q", i+1, l)
+		}
+	}
+	if got := Wrap("short", 10); len(got) != 1 || got[0] != "short" {
+		t.Fatalf("short: %q", got)
+	}
+}

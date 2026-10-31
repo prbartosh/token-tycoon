@@ -54,7 +54,7 @@ pre.term .in{display:inline-block;width:44ch;overflow:hidden;vertical-align:top}
 .cmd.ok span{color:var(--green)}
 .free{color:var(--gold);font-size:13px}
 footer{color:var(--dim);font-size:12px;text-align:center;padding:24px 16px 32px}
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hint{animation:none}.scene{height:auto}.stick{position:static;min-height:100svh}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hint{animation:none}}
 </style>
 </head>
 <body>
@@ -206,7 +206,7 @@ function braille(data, w, h) {
 
 const SCENES = {
   start(p, t) {
-    const l = L(), runs = Math.floor(ease(p) * 9), cyc = reduce ? 1 : (p * 9) % 1;
+    const l = L(), runs = Math.floor(ease(p) * 9), cyc = (p * 9) % 1;
     const cash = runs * 4 + (p > .95 ? 12 : 0);
     const owned = 1 + Math.floor(p * 4);
     return frame("TOKEN TYCOON", [
@@ -226,9 +226,9 @@ const SCENES = {
     rows.push(row());
     for (let i = 0; i < 5; i++) {
       if (i >= n) { rows.push(row(["d", "  " + pad(l.biz[i], 24) + "locked"])); rows.push(row()); continue; }
-      const speed = 0.4 + i * 0.5 + p * 3, cyc = reduce ? .7 : (t * speed + i * .17) % 1;
+      const speed = 0.4 + i * 0.5 + p * 3, cyc = (t * speed + i * .17) % 1;
       rows.push(row([GRAD[i], "▸ " + pad(l.biz[i], 24)], ["k", "★ " + l.mgr]));
-      if (speed > 2.6 && !reduce) rows.push(row(["", "  "], ...flow(26, t, i), ["g", "     max"]));
+      if (speed > 2.6) rows.push(row(["", "  "], ...flow(26, t, i), ["g", "     max"]));
       else rows.push(row(["", "  "], ...bar(cyc, 30, "g"), ["g", " +" + num(Math.pow(10, i + 1))]));
     }
     return frame("TOKEN TYCOON", rows);
@@ -240,7 +240,7 @@ const SCENES = {
     for (let r = 0; r < 4; r++) {
       const parts = [["", "  "]];
       for (let c = 0; c < 12; c++) {
-        const i = r * 12 + c, on = i < racks, blink = on && !reduce && Math.sin(t * 6 + i * 1.7) > .6;
+        const i = r * 12 + c, on = i < racks, blink = on && Math.sin(t * 6 + i * 1.7) > .6;
         parts.push([on ? (blink ? "g" : GRAD[(i >> 2) % 6]) : "d", on ? "▮ " : "▯ "]);
       }
       rows.push(row(...parts));
@@ -284,7 +284,7 @@ const SCENES = {
     rows.push(row());
     names.forEach((nm, i) => {
       const done = i < k, cur = i === k;
-      rows.push(row([done ? "g" : cur ? "y w" : "d", (done ? "✓ " : cur ? "▸ " : "  ") + pad(nm, 12)], ...(cur ? bar(reduce ? 1 : (p * 6) % 1, 22, "y") : [[done ? "k" : "d", done ? "$ " + num(2e6 * Math.pow(30, i)) : "·".repeat(22)]])));
+      rows.push(row([done ? "g" : cur ? "y w" : "d", (done ? "✓ " : cur ? "▸ " : "  ") + pad(nm, 12)], ...(cur ? bar((p * 6) % 1, 22, "y") : [[done ? "k" : "d", done ? "$ " + num(2e6 * Math.pow(30, i)) : "·".repeat(22)]])));
     });
     rows.push(row());
     rows.push(row(["d", "burn "], ["b", "-" + money(1.2e5 * Math.pow(40, k)) + l.rate]));
@@ -296,7 +296,7 @@ const SCENES = {
     rows.push(row());
     ["compute", "data", "alignment", "talent"].forEach((s, i) => {
       const f = clamp(q * 1.1 - i * .03);
-      rows.push(row(["d", pad(s, 11)], ...(f >= 1 && !reduce ? flow(28, t, 4 + i) : bar(f, 28, "e")), ["e", lpad(Math.round(f * 100) + "%", 5)]));
+      rows.push(row(["d", pad(s, 11)], ...(f >= 1 ? flow(28, t, 4 + i) : bar(f, 28, "e")), ["e", lpad(Math.round(f * 100) + "%", 5)]));
     });
     rows.push(row());
     rows.push(row(["", " ".repeat(Math.floor((W - 1 - len(l.agiDone) - 4) / 2))], ["m w", done ? "◆ " + l.agiDone + " ◆" : ""]));
@@ -313,7 +313,7 @@ const LOGO = [
 ];
 function drawLogo(t) {
   document.getElementById("logo").innerHTML = LOGO.map((ln, r) => [...ln].map((ch, i) =>
-    ch === " " ? " " : col(GRAD[Math.floor((i / 3 + r * .5 + (reduce ? 0 : t * 4)) % GRAD.length)], ch)).join("")).join("\n");
+    ch === " " ? " " : col(GRAD[Math.floor((i / 3 + r * .5 + t * 4) % GRAD.length)], ch)).join("")).join("\n");
 }
 
 const scenes = [...document.querySelectorAll(".scene")].map(el => ({ el, key: el.dataset.s, pre: el.querySelector("pre"), line: el.querySelector(".line"), last: "", visible: false }));
@@ -328,23 +328,23 @@ function progressOf(el) {
 let lastLogo = -1, lastHud = "";
 function tick(ms) {
   const t = ms / 1000;
-  if (!reduce && scrollY < innerHeight) { const lt = Math.floor(t * 15); if (lt !== lastLogo) { lastLogo = lt; drawLogo(t); } }
+  if (scrollY < innerHeight) { const lt = Math.floor(t * 15); if (lt !== lastLogo) { lastLogo = lt; drawLogo(t); } }
   const doc = document.documentElement, gp = clamp(scrollY / Math.max(1, doc.scrollHeight - innerHeight));
   const hv = money(gp < .02 ? 0 : Math.pow(10, gp * 63));
   if (hv !== lastHud) { lastHud = hv; hudv.textContent = hv.slice(2); }
   for (const s of scenes) {
     if (!s.visible && s.last) continue;
-    const p = reduce ? 1 : progressOf(s.el);
-    const html = SCENES[s.key](p, reduce ? 0 : t);
+    const p = progressOf(s.el);
+    const html = SCENES[s.key](p, t);
     if (html !== s.last) { s.pre.innerHTML = html; s.last = html; }
+    const a = clamp(p * 6) * clamp((1 - p) * 8 + .15);
+    s.pre.style.opacity = a; s.line.style.opacity = a;
     if (!reduce) {
-      const a = clamp(p * 6) * clamp((1 - p) * 8 + .15);
-      s.pre.style.opacity = a; s.line.style.opacity = a;
       s.pre.style.transform = `translateY(${(1 - clamp(p * 5)) * 24}px) scale(${.96 + clamp(p * 5) * .04})`;
       s.line.style.transform = `translateY(${(1 - clamp(p * 5)) * 14}px)`;
     }
   }
-  if (!reduce) requestAnimationFrame(tick);
+  requestAnimationFrame(tick);
 }
 
 function detect() {
@@ -377,14 +377,12 @@ function setLang(x) {
   document.querySelectorAll(".lang button").forEach(b => b.setAttribute("aria-pressed", b.dataset.l === x));
   scenes.forEach(s => s.last = "");
   renderDownloads();
-  if (reduce) tick(0);
 }
 document.querySelectorAll(".lang button").forEach(b => b.addEventListener("click", () => setLang(b.dataset.l)));
 
 drawLogo(0);
 setLang(lang);
-if (reduce) addEventListener("scroll", () => { lastHud = ""; tick(0); }, { passive: true });
-else requestAnimationFrame(tick);
+requestAnimationFrame(tick);
 </script>
 </body>
 </html>

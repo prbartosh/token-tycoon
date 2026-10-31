@@ -12,11 +12,11 @@ func TestDefaultIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := b.ManagerCost(0); got != 60 {
-		t.Errorf("tier-1 manager cost = %v, want 60", got)
+	if got := b.ManagerCost(0); got != 50 {
+		t.Errorf("tier-1 manager cost = %v, want 50", got)
 	}
-	if got := b.ManagerCost(1); got != 120*100 {
-		t.Errorf("tier-2 manager cost = %v, want 12000", got)
+	if got, want := b.ManagerCost(1), b.Businesses[1].Cost*b.BusinessDefaults.ManagerMult; got != want {
+		t.Errorf("tier-2 manager cost = %v, want %v", got, want)
 	}
 	if b.Start.Money != 0 || b.FreeOwned()[0] != 1 {
 		t.Errorf("start = %v / %v, want 0 $ and one free api_wrapper", b.Start.Money, b.FreeOwned())
@@ -38,7 +38,7 @@ func TestDefaultIsValid(t *testing.T) {
 	if i, ok := b.CardIndex("lora_paper"); !ok || b.CardTarget(i) != 2 {
 		t.Errorf("lora_paper target index")
 	}
-	if b.Milestones.GlobalEvery != 100 || len(b.Milestones.GlobalThresholds) != 3 {
+	if b.Milestones.GlobalEvery != 50 || len(b.Milestones.GlobalThresholds) != 3 {
 		t.Errorf("global milestones = %v every %d", b.Milestones.GlobalThresholds, b.Milestones.GlobalEvery)
 	}
 }
@@ -65,6 +65,7 @@ target = ["all"]
 effect = "profit"
 value = 2
 `)
+	base := Default()
 	b, err := Parse(defaultTOML, over)
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +73,7 @@ value = 2
 	if b.Crit.Chance != 0.05 || b.Crit.Mult != 10 {
 		t.Errorf("crit = %+v", b.Crit)
 	}
-	if b.Businesses[1].Cost != 999 || b.Businesses[1].R != 1.15 || b.Businesses[1].CycleS != 3 {
+	if b.Businesses[1].Cost != 999 || b.Businesses[1].R != base.Businesses[1].R || b.Businesses[1].CycleS != 3 {
 		t.Errorf("rag_chatbot = %+v", b.Businesses[1])
 	}
 	if b.Businesses[0].Cost != 10 {
@@ -100,6 +101,7 @@ func TestValidationErrors(t *testing.T) {
 		{"card reduction sign", "[[card]]\nid = \"layer_norm\"\nvalue = 0.2\n", "cost_all must be in (-1, 0)"},
 		{"compute_mult", "[[upgrade]]\nid = \"moe\"\ncompute_mult = 1.5\n", "compute_mult: must be in (0, 1]"},
 		{"gen order", "[[gpu_gen]]\ngen = 2\nunlock_lifetime = 1\n", "generations must unlock in order"},
+		{"business order", "[[business]]\nid = \"frontier_lab\"\nunlock_lifetime = 1\n", "businesses must unlock in tier order"},
 		{"max level", "[cards]\nmax_level = 0\n", "cards.max_level"},
 	}
 	for _, c := range cases {

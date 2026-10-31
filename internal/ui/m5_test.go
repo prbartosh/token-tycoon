@@ -109,13 +109,17 @@ func TestRegionAndAGIActions(t *testing.T) {
 	h.m.tsel[tabResearch] = tkey{act: actAGI, idx: 0}
 	h.m.s.Money = 1e200
 	h.key("enter")
+	h.contains("AGI INVESTMENT", "10% of cash", "Missing amount")
+	h.key("enter")
+	h.contains("The contribution survives")
+	h.key("enter")
 	if h.m.s.AGI.Stage != 1 {
 		t.Fatalf("AGI stage %d after invest", h.m.s.AGI.Stage)
 	}
 	h.m.s.AGI.Stage = len(h.b.AGIStages) - 1
 	h.m.s.Money = 1e200
 	h.m.tsel[tabResearch] = tkey{act: actAGI, idx: h.m.s.AGI.Stage}
-	h.key("enter")
+	h.key("enter", "enter", "enter")
 	if h.m.modal.kind != modalEnding || !sim.AGIEnded(h.m.s, h.b) {
 		t.Fatalf("ending modal not shown: %v", h.m.modal.kind)
 	}

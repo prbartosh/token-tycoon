@@ -10,7 +10,7 @@ import (
 
 func m4State(t testing.TB, b *balance.Balance) State {
 	s := m3State(t, b)
-	s.Lifetime.Total = b.Rules.UnlockLifetime
+	s.Lifetime.Total = max(b.Rules.UnlockLifetime, b.GPUGens[6].UnlockLifetime, b.GPUGens[7].UnlockLifetime, b.Research.UnlockLifetime)
 	s.Lifetime.Layer2Total = b.Prestige.Layer2.UnlockLifetime
 	Step(&s, b, 0.1, nil, nil)
 	for _, u := range []Unlock{UnlockTalent, UnlockContracts, UnlockLayer2, UnlockResearch, UnlockRules} {
@@ -210,7 +210,8 @@ func TestFundingRound(t *testing.T) {
 	s.Infra.Racks[3] = 50
 	s.Training.Models = []Model{{Name: "A", Params: 1e9, Benchmark: 80}}
 	pv := Funding(&s, b)
-	if want := math.Floor(5 * math.Pow(6, 1.5)); !pv.Allowed || pv.Gain != want || !(pv.Valuation > 0) {
+	l2 := &b.Prestige.Layer2
+	if want := math.Floor(l2.CapitalCoef * math.Pow(45-l2.CapitalLogOffset, l2.CapitalExponent)); !pv.Allowed || pv.Gain != want || !(pv.Valuation > 0) {
 		t.Fatalf("preview %+v want gain %v", pv, want)
 	}
 	evs := Step(&s, b, 0, []Command{FundingRound()}, nil)
@@ -223,6 +224,11 @@ func TestFundingRound(t *testing.T) {
 	}
 	if !s.IsUnlocked(UnlockResearch) {
 		t.Fatal("unlocks must survive")
+	}
+	bonus := 1 + 1e6*b.Prestige.Layer1.BonusPerParam
+	if want := math.Pow(bonus, b.Prestige.Layer2.RoundBankShare); pv.RoundMult != 1 || math.Abs(pv.RoundMultNew/want-1) > 1e-12 ||
+		math.Abs(s.Prestige.RoundMult/want-1) > 1e-12 || math.Abs(s.Derived.RoundMult/want-1) > 1e-12 {
+		t.Fatalf("round bank: preview %v/%v state %v derived %v want %v", pv.RoundMult, pv.RoundMultNew, s.Prestige.RoundMult, s.Derived.RoundMult, want)
 	}
 	if Funding(&s, b).Allowed {
 		t.Fatal("second round without new revenue")

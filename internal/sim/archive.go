@@ -98,6 +98,7 @@ func applyArchive(s *State, b *balance.Balance, c *Command, out []Event) []Event
 			return reject(out, c, RejectInvalid, 0)
 		}
 		md := tr.Pending[0]
+		md.ReleasedS = s.Clock
 		tr.Pending = append(tr.Pending[:0], tr.Pending[1:]...)
 		switch {
 		case len(tr.Models) < MaxModels(s, b):

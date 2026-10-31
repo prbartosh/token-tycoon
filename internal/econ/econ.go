@@ -18,8 +18,7 @@ func BulkCost(base, r float64, owned, k int) float64 {
 	return UnitCost(base, r, owned) * (math.Pow(r, float64(k)) - 1) / (r - 1)
 }
 
-// MaxAffordable is the largest k with BulkCost(base, r, owned, k) <= money:
-// floor(log(money*(r-1)/(base*r^owned) + 1) / log r), corrected for rounding.
+// MaxAffordable: k = floor(log(money*(r-1)/(base*r^owned) + 1) / log r), corrected for rounding.
 func MaxAffordable(money, base, r float64, owned int) int {
 	if !(money > 0) || !(base > 0) {
 		return 0
@@ -127,7 +126,33 @@ func Layer1Params(runRevenue, coef, divisor, exp float64) float64 {
 	return floorEps(coef * math.Pow(runRevenue/divisor, exp))
 }
 
+// Layer1Leap: gain = raw*cap/(raw+cap), cap = (params+coef)*runS/leapS, so one
+// reset multiplies the bonus by at most ~1+runS/leapS (DECISIONS, etap 4).
+func Layer1Leap(raw, params, coef, runS, leapS float64) float64 {
+	if !(raw > 0) || !(leapS > 0) {
+		return math.Max(0, raw)
+	}
+	limit := (math.Max(0, params) + coef) * math.Max(0, runS) / leapS
+	if !(limit > 0) {
+		return 0
+	}
+	if raw > limit {
+		return floorEps(limit / (1 + limit/raw))
+	}
+	return floorEps(raw / (1 + raw/limit))
+}
+
 func Layer1Bonus(params, bonusPerParam float64) float64 { return 1 + params*bonusPerParam }
+
+func RoundBank(mult, paramBonus, share float64) float64 {
+	if !(mult >= 1) {
+		mult = 1
+	}
+	if !(paramBonus > 1) || !(share > 0) {
+		return mult
+	}
+	return math.Min(mult*math.Pow(paramBonus, share), 1e280)
+}
 
 func Layer2Capital(total, coef, offset, exp float64) float64 {
 	if !(total > 0) {

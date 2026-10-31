@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"token-tycoon/internal/i18n"
 	"token-tycoon/internal/sim"
@@ -16,6 +17,7 @@ func lateGame(c *Config) {
 	s := c.State
 	s.Lifetime.Total = 1e20
 	s.Lifetime.Run = 1e14
+	s.Clock = 3600
 	s.Money = 1e19
 	for i := range s.Businesses {
 		s.Businesses[i].Owned = 120
@@ -157,14 +159,14 @@ func TestModelsTrainingFlow(t *testing.T) {
 	if len(h.m.s.Training.Models) == 0 {
 		t.Fatal("model never released")
 	}
-	if h.m.modal.kind != modalRelease {
+	if h.m.cer.kind != cerRelease {
 		t.Fatal("no release ceremony")
 	}
 	h.contains("MODEL RELEASE", h.m.s.Training.Models[0].Name)
 	h.dump("release")
-	h.key("z")
-	if h.m.modal.kind != modalNone {
-		t.Fatal("ceremony not dismissed")
+	h.frames(7*time.Second, 100*time.Millisecond)
+	if h.m.cer.active() {
+		t.Fatal("ceremony did not end on its own")
 	}
 	for h.m.tabCurrent().act != actModel {
 		h.key("down")

@@ -179,6 +179,7 @@ type Prestige struct {
 	ResetsL1        int     `json:"resets_l1"`
 	ResetsL2        int     `json:"resets_l2"`
 	RunStartS       float64 `json:"run_start_s"`
+	RoundMult       float64 `json:"round_mult"`
 }
 
 type AGI struct {
@@ -317,6 +318,9 @@ func Normalize(s *State, b *balance.Balance) {
 	s.Prestige.RoundStartS = math.Min(math.Max(0, s.Prestige.RoundStartS), s.Clock)
 	if !(s.Prestige.Capital >= 0) || math.IsInf(s.Prestige.Capital, 0) {
 		s.Prestige.Capital = 0
+	}
+	if !(s.Prestige.RoundMult >= 1) || math.IsInf(s.Prestige.RoundMult, 0) || s.Prestige.ResetsL2 == 0 {
+		s.Prestige.RoundMult = 1
 	}
 	for i := range s.Businesses {
 		s.Businesses[i].ID = b.Businesses[i].ID

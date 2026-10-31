@@ -37,23 +37,37 @@ func (m *Model) openAGIInvest() {
 }
 
 func (m *Model) agiKey(k string) tea.Cmd {
+	md := &m.modal
+	if md.confirm {
+		switch k {
+		case "enter", "y":
+			sel := md.sel
+			m.modal = modal{}
+			if _, can := m.agiAmount(sel); !can {
+				return nil
+			}
+			return m.exec(sim.Command{Kind: sim.CmdAGIInvest, Business: -1, Share: agiPortions[sel]})
+		case "esc", "n":
+			md.confirm = false
+		}
+		return nil
+	}
 	switch k {
 	case "esc", "n":
 		m.modal = modal{}
 		return nil
 	case "1", "2", "3", "4":
-		m.modal.sel = int(k[0] - '1')
+		md.sel = int(k[0] - '1')
 		return nil
 	}
 	sel, ok := m.pickKey(k, len(agiPortions))
 	if !ok {
 		return nil
 	}
-	if _, can := m.agiAmount(sel); !can {
-		return nil
+	if _, can := m.agiAmount(sel); can {
+		md.confirm = true
 	}
-	m.modal = modal{}
-	return m.exec(sim.Command{Kind: sim.CmdAGIInvest, Business: -1, Share: agiPortions[sel]})
+	return nil
 }
 
 func (m *Model) agiBox() string {
@@ -86,6 +100,14 @@ func (m *Model) agiBox() string {
 		}
 		body = append(body, m.pickLine(i, line))
 	}
-	body = append(body, "", widgets.Center(th.Key.Render(c.T("ui.agi.keys")), w-2))
+	body = append(body, "")
+	if x, ok := m.agiAmount(m.modal.sel); ok && m.modal.confirm {
+		for _, l := range wrapLines(c.T("ui.agi.confirm", m.money(x), m.agiName(v.Stage)), w-4) {
+			body = append(body, " "+th.Gold.Render(l))
+		}
+		body = append(body, "", widgets.Center(th.Key.Render(c.T("ui.key.confirm"))+"   "+th.KeyText.Render(c.T("ui.key.back")), w-2))
+		return m.box(c.T("ui.agi.title"), body, w)
+	}
+	body = append(body, widgets.Center(th.Key.Render(c.T("ui.agi.keys")), w-2))
 	return m.box(c.T("ui.agi.title"), body, w)
 }

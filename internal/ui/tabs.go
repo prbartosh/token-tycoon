@@ -44,6 +44,8 @@ const (
 	actCompliance
 	actAGI
 	actEnding
+	actPending
+	actArchived
 )
 
 type tkey struct {
@@ -279,7 +281,7 @@ func (m *Model) tabEnter() tea.Cmd {
 		return m.exec(sim.SetSynthetic(2 * synthStep))
 	case actTrainN, actTrainD, actTrainShare, actTrainStart:
 		m.ensureDraft()
-		return m.exec(sim.Train(m.draft.n, m.draft.d, m.draft.share))
+		return m.exec(sim.ManualTrain(m.draft.n, m.draft.d, m.draft.share))
 	case actModel:
 		return m.cycleSegment(k.idx)
 	case actHire:
@@ -302,6 +304,11 @@ func (m *Model) tabEnter() tea.Cmd {
 		return m.agiEnter(k)
 	case actEnding:
 		m.modal = modal{kind: modalEnding}
+	case actPending:
+		m.later = false
+		m.openChoice()
+	case actArchived:
+		return m.archiveEnter(k.idx)
 	}
 	return nil
 }
@@ -359,6 +366,10 @@ func (m *Model) tabRemove() tea.Cmd {
 		return m.exec(sim.DeclineContract(k.idx))
 	case actRule:
 		return m.exec(sim.DeleteRule(k.idx))
+	case actArchived:
+		if k.idx < len(m.s.Training.Archive) {
+			m.modal = modal{kind: modalDeleteArchived, idx: k.idx}
+		}
 	}
 	return nil
 }
@@ -485,6 +496,10 @@ func (m *Model) tabKeyItems(items []string) []string {
 		}
 	case actEnding:
 		items = append(items, c.T("ui.key.ending"))
+	case actPending:
+		items = append(items, c.T("ui.key.choose"))
+	case actArchived:
+		items = append(items, c.T("ui.key.swap"), c.T("ui.key.delete_archived"))
 	}
 	return items
 }

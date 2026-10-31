@@ -28,7 +28,7 @@ var botRules = [...]sim.Rule{
 func (bt *bot) maybeFunding() bool {
 	s := &bt.s
 	pv := sim.Funding(s, bt.b)
-	if !pv.Allowed {
+	if !pv.Allowed || len(s.Contracts) > 0 {
 		return false
 	}
 	doubled := pv.Gain >= math.Max(5, s.Prestige.CapitalLifetime)
@@ -98,7 +98,7 @@ func (bt *bot) maintainContracts() {
 		exp := s.Derived.TokensPerSec * o.DurationS * (1 + g*o.DurationS/2)
 		ok := bench >= o.MinBenchmark
 		switch {
-		case ok && !soon && exp >= o.Volume*contractMargin && len(s.Contracts) < sim.ContractSlots(s, b):
+		case ok && !soon && exp >= o.Volume*contractMargin && len(s.Contracts) < sim.ContractSlots(s, b) && s.Clock+o.DurationS < bt.activeEnd:
 			bt.exec(sim.AcceptContract(i))
 		case !ok || exp < o.Volume*declineBelow:
 			bt.exec(sim.DeclineContract(i))

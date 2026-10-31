@@ -137,10 +137,10 @@ func step(s *State, b *balance.Balance, dt float64, cmds []Command, out []Event,
 }
 
 func earn(s *State, x float64) {
-	s.Money += x
-	s.Lifetime.Run += x
-	s.Lifetime.Total += x
-	s.Lifetime.Layer2Total += x
+	s.Money = math.Min(s.Money+x, MaxStock)
+	s.Lifetime.Run = math.Min(s.Lifetime.Run+x, MaxStock)
+	s.Lifetime.Total = math.Min(s.Lifetime.Total+x, MaxStock)
+	s.Lifetime.Layer2Total = math.Min(s.Lifetime.Layer2Total+x, MaxStock)
 }
 
 func reject(out []Event, c *Command, r Reject, amount float64) []Event {

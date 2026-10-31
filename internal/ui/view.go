@@ -11,6 +11,7 @@ import (
 
 	"token-tycoon/internal/balance"
 	"token-tycoon/internal/format"
+	"token-tycoon/internal/i18n"
 	"token-tycoon/internal/sim"
 	"token-tycoon/internal/ui/anim"
 	"token-tycoon/internal/ui/theme"
@@ -220,7 +221,26 @@ func (m *Model) spans(compact bool) [numTabs][2]int {
 
 func (m *Model) badge() string { return "•" + m.cat.T("tab.new") }
 
+type tabBarKey struct {
+	w, tab int
+	news   [numTabs]bool
+	locked [numTabs]bool
+	lang   i18n.Lang
+}
+
 func (m *Model) tabBar(w int) string {
+	k := tabBarKey{w: w, tab: m.tab, news: m.newTab, lang: m.cat.Lang()}
+	for t := range numTabs {
+		k.locked[t] = !m.unlocked(tabUnlock[t])
+	}
+	if m.tabC.ok && m.tabC.key == k {
+		return m.tabC.s
+	}
+	m.tabC.key, m.tabC.ok, m.tabC.s = k, true, m.renderTabBar(w)
+	return m.tabC.s
+}
+
+func (m *Model) renderTabBar(w int) string {
 	th := m.th
 	compact := m.tabCompact()
 	var sb strings.Builder
@@ -310,6 +330,7 @@ func (m *Model) body(lines []string, g geometry) []string {
 	bar := th.Border.Render("│")
 	for y := range g.bodyH {
 		var sb strings.Builder
+		sb.Grow(m.width * 4)
 		sb.WriteString(bar)
 		for i, pw := range widths {
 			if pw == 0 {
@@ -361,18 +382,31 @@ func (m *Model) flashStyle(slot int) (theme.Paint, bool) {
 }
 
 func (m *Model) prefix(r row, selected bool) string {
+	adv := m.advisedRow(r)
+	k := b2i(selected)*2 + b2i(adv)
+	if p := m.prefixes[k]; p != "" {
+		return p
+	}
 	var sb strings.Builder
 	if selected {
 		sb.WriteString(m.th.Marker.Render(">"))
 	} else {
 		sb.WriteByte(' ')
 	}
-	if m.advisedRow(r) {
+	if adv {
 		sb.WriteString(m.th.Star.Render("*"))
 	} else {
 		sb.WriteByte(' ')
 	}
-	return sb.String()
+	m.prefixes[k] = sb.String()
+	return m.prefixes[k]
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (m *Model) costText(cost float64) string {
@@ -430,6 +464,7 @@ func (m *Model) rowLine(r row, selected bool, w int) string {
 		nameSt = fs
 	}
 	var sb strings.Builder
+	sb.Grow(w * 4)
 	sb.WriteString(m.prefix(r, selected))
 	sb.WriteString(nameSt.Render(widgets.Fit(m.bizName(i), nameW)))
 	sb.WriteByte(' ')
@@ -493,7 +528,35 @@ func (m *Model) valueCell(i int) string {
 	return st.Render(widgets.FitRight(m.num(d.PerCycle[i]*combo), valueW))
 }
 
+type upgKey struct {
+	ok                               bool
+	w                                int
+	selected, adv, owned, afford, cb bool
+	n                                format.Notation
+	lang                             i18n.Lang
+}
+
+type upgEntry struct {
+	key upgKey
+	s   string
+}
+
 func (m *Model) upgradeLine(r row, selected bool, w int) string {
+	u := r.idx
+	cost := m.b.Upgrades[u].Cost
+	k := upgKey{ok: true, w: w, selected: selected, adv: m.advisedRow(r), owned: m.s.Upgrades.Has(u), afford: cost <= m.s.Money,
+		cb: m.s.Settings.Colorblind, n: m.notation(), lang: m.cat.Lang()}
+	if _, flashing := m.flashStyle(r.slot()); flashing || u >= len(m.upgC) {
+		return m.renderUpgrade(r, selected, w)
+	}
+	if e := &m.upgC[u]; e.key == k {
+		return e.s
+	}
+	m.upgC[u] = upgEntry{key: k, s: m.renderUpgrade(r, selected, w)}
+	return m.upgC[u].s
+}
+
+func (m *Model) renderUpgrade(r row, selected bool, w int) string {
 	th := m.th
 	u := r.idx
 	owned := m.s.Upgrades.Has(u)
@@ -541,7 +604,16 @@ func (m *Model) qtyLabel() string {
 }
 
 func (m *Model) logLines(w, h int) []string {
-	out := make([]string, 0, h)
+	lc := &m.logC
+	if lc.seq == m.logSeq && lc.w == w && lc.h == h && lc.lines != nil {
+		return lc.lines
+	}
+	lc.seq, lc.w, lc.h = m.logSeq, w, h
+	lc.lines = m.wrapLog(lc.lines[:0], w, h)
+	return lc.lines
+}
+
+func (m *Model) wrapLog(out []string, w, h int) []string {
 	for i := len(m.log) - 1; i >= 0 && len(out) < h; i-- {
 		st := m.th.Text
 		if len(out) >= 3 {
@@ -622,14 +694,21 @@ func (m *Model) keyItems() []string {
 	c := m.cat
 	items := make([]string, 0, 12)
 	switch {
+	case m.pal.open:
+		return append(items, c.T("ui.key.run"), c.T("ui.key.close"))
 	case m.away.open:
 		return append(items, c.T("ui.key.continue"), c.T("key.quit"))
 	case m.help:
-		return append(items, c.T("ui.key.close"), c.T("key.quit"))
-	case m.modal.kind == modalRelease || m.modal.kind == modalEnding || m.modal.kind == modalFunded:
+		return append(items, c.T("ui.key.scroll"), c.T("ui.key.close"), c.T("key.quit"))
+	case m.modal.kind == modalEnding:
 		return append(items, c.T("ui.key.continue"), c.T("key.quit"))
+	case m.modal.kind == modalChoose || m.modal.kind == modalSwap || m.modal.kind == modalSettings:
+		return append(items, c.T("key.select"), c.T("ui.key.choose_row"), c.T("ui.key.close"), c.T("key.quit"))
 	case m.modal.kind != modalNone:
 		return append(items, c.T("ui.key.confirm"), c.T("ui.key.cancel"), c.T("key.quit"))
+	}
+	if m.cer.active() {
+		items = append(items, c.T("ui.key.skip"))
 	}
 	if key := m.reactionKey(); key != "" {
 		items = append(items, c.T("ui.key.react", strings.ToUpper(key)))
@@ -676,7 +755,7 @@ func (m *Model) keyItems() []string {
 	if m.s.IsUnlocked(sim.UnlockLayer2) {
 		items = append(items, c.T("ui.key.funding"))
 	}
-	items = append(items, c.T("key.select"))
+	items = append(items, c.T("key.select"), c.T("key.palette"))
 	return append(items, c.T("key.tabs"), c.T("key.help"), c.T("key.quit"))
 }
 

@@ -136,14 +136,17 @@ func TestResearchAndFundingUI(t *testing.T) {
 	h.key("P")
 	h.contains("FUNDING ROUND", "Valuation")
 	h.key("enter")
-	if h.m.s.Prestige.ResetsL2 != 1 || h.m.modal.kind != modalFunded {
-		t.Fatalf("funding: %+v modal %v", h.m.s.Prestige, h.m.modal.kind)
+	if h.m.s.Prestige.ResetsL2 != 1 || h.m.cer.kind != cerFunding {
+		t.Fatalf("funding: %+v ceremony %v", h.m.s.Prestige, h.m.cer.kind)
 	}
 	h.contains("ROUND CLOSED", "Pre-seed")
 	if h.m.desired() != fpsInterval(h.b.Engine.FPSAnimation) {
 		t.Fatal("valuation counter does not animate")
 	}
-	h.key("enter")
+	h.key("esc")
+	if h.m.cer.active() {
+		t.Fatal("esc did not skip the ceremony")
+	}
 	h.key("P")
 	h.contains("Requires")
 	h.key("enter")

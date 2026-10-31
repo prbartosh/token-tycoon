@@ -234,8 +234,7 @@ func HypeGainPerS(freeAlloc, share float64, m *balance.Market) float64 {
 	return freeAlloc * share * m.Segments.FreeHypePerShare / 3600
 }
 
-// HypeAfter integrates dh/dt = gain - h*ln2/halfLife exactly over dt, so the
-// result does not depend on the step length (online 0.1 s or offline 60 s).
+// Exact integral of dh/dt = gain - h*ln2/halfLife, independent of step length.
 func HypeAfter(h, gainPerS, halfLifeS, dt float64) float64 {
 	lambda := math.Ln2 / halfLifeS
 	eq := gainPerS / lambda

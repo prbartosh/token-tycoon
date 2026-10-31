@@ -50,8 +50,6 @@ func OrbitalCost(s *State, b *balance.Balance) float64 {
 	return b.Energy.OrbitalCostMinutes * 60 * pricingIncome(s)
 }
 
-// pricingIncome prices durable energy in minutes of the best income ever
-// reached, so a fresh run after prestige cannot buy a reactor for pocket money.
 func pricingIncome(s *State) float64 {
 	return math.Max(s.Derived.BaseIncome, s.Stats.BestIncome)
 }

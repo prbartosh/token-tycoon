@@ -32,10 +32,7 @@ func ClusterFLOPS(racks []int, gens []balance.GPUGen, exp float64) float64 {
 	return f
 }
 
-// OptimalTokens is the compute-optimal data size for n parameters under a
-// fixed budget C = 6ND: minimizing A/N^a + B/D^b gives aA/N^a = bB/D^b, so
-// D = (bB/(aA) * N^a)^(1/b). With this game's constants the ratio D/N grows
-// from about 16 at N=1e7 to about 200 at N=1e12.
+// Derivation: under C = 6ND minimizing A/N^a + B/D^b gives aA/N^a = bB/D^b, so D = (bB/(aA) * N^a)^(1/b).
 func OptimalTokens(n float64, t *balance.Training) float64 {
 	return math.Pow(t.Beta*t.LossB/(t.Alpha*t.LossA)*math.Pow(n, t.Alpha), 1/t.Beta)
 }

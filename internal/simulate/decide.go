@@ -216,7 +216,11 @@ func (bt *bot) exec(c sim.Command) {
 }
 
 func (bt *bot) decide() {
-	if bt.maybeFunding() || bt.maybePrestige() {
+	if bt.maybePrestige() {
+		bt.maybeFunding()
+		return
+	}
+	if bt.maybeFunding() {
 		return
 	}
 	bt.maintainInfra()

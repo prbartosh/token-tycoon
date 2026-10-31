@@ -139,27 +139,14 @@ func (m *Model) fundingBox() string {
 		" "+th.Gold.Render(c.T("funding.gain", m.num(pv.Gain), m.num(pv.CapitalAfter))),
 		" "+th.Text.Render(c.T("funding.valuation", m.money(pv.Valuation))),
 		" "+th.Text.Render(c.T("funding.round_time", m.dur(pv.RoundS))),
-		"")
+	)
+	for _, l := range wrapLines(c.T("ui.funding.round_mult", m.num(pv.RoundMult), m.num(pv.RoundMultNew)), w-4) {
+		body = append(body, " "+th.Params.Render(l))
+	}
+	body = append(body, "")
 	for _, l := range wrapLines(c.T("funding.resets"), w-4) {
 		body = append(body, " "+th.Dim.Render(l))
 	}
 	body = append(body, "", widgets.Center(th.Key.Render(c.T("ui.key.confirm"))+"   "+th.KeyText.Render(c.T("ui.key.cancel")), w-2))
 	return m.box(c.T("funding.title"), body, w)
-}
-
-func (m *Model) fundedBox() string {
-	th, c, md := m.th, m.cat, &m.modal
-	w := min(modalW, m.width-2)
-	body := []string{
-		"",
-		widgets.Center(th.Capital.Render(md.name), w-2),
-		"",
-		widgets.Center(th.Text.Render(c.T("funding.valuation_label")), w-2),
-		widgets.Center(th.Money.Render(m.money(m.anim.Counter.Value)), w-2),
-		"",
-		" " + th.Gold.Render(c.T("funding.raised", m.num(md.share), m.num(m.s.Prestige.Capital))),
-		"",
-		widgets.Center(th.KeyText.Render(c.T("ui.key.continue")), w-2),
-	}
-	return m.box(c.T("funding.ceremony"), body, w)
 }

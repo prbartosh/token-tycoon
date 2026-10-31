@@ -8,10 +8,31 @@ import (
 )
 
 func (m *Model) openChoice() {
-	if _, ok := sim.PendingRelease(m.s); !ok {
+	if _, ok := sim.PendingRelease(m.s); !ok || m.modal.kind != modalNone {
 		return
 	}
 	m.modal = modal{kind: modalChoose, sel: max(0, sim.WeakestModel(m.s))}
+}
+
+func (m *Model) maybeChoose() {
+	if m.later || m.away.open || m.help || m.pal.open {
+		return
+	}
+	m.openChoice()
+}
+
+func (m *Model) pendingName() string {
+	if md, ok := sim.PendingRelease(m.s); ok {
+		return md.Name
+	}
+	return ""
+}
+
+func (m *Model) archivedName(i int) string {
+	if i < 0 || i >= len(m.s.Training.Archive) {
+		return ""
+	}
+	return m.s.Training.Archive[i].Name
 }
 
 func (m *Model) choiceRows() int { return len(m.s.Training.Models) + 1 }
@@ -36,6 +57,7 @@ func (m *Model) choiceKey(k string) tea.Cmd {
 	}
 	if k == "esc" {
 		m.modal = modal{}
+		m.later = true
 		return nil
 	}
 	sel, ok := m.pickKey(k, m.choiceRows())

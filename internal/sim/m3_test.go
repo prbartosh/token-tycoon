@@ -12,7 +12,7 @@ import (
 
 func m3State(t testing.TB, b *balance.Balance) State {
 	s := infraState(t, b)
-	s.Lifetime.Total = b.Training.UnlockLifetime
+	s.Lifetime.Total = max(b.Training.UnlockLifetime, b.Data.UnlockLifetime, b.Market.UnlockLifetime)
 	s.Clock = 2 * market.Day
 	Step(&s, b, 0.1, nil, nil)
 	if !s.IsUnlocked(UnlockMarket) || !s.IsUnlocked(UnlockTraining) || !s.IsUnlocked(UnlockData) {

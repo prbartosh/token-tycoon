@@ -20,6 +20,8 @@ type FundingPreview struct {
 	RoundS       float64
 	Bonus        float64
 	BaseGain     float64
+	RoundMult    float64
+	RoundMultNew float64
 }
 
 const yearS = 365 * 86400
@@ -37,6 +39,8 @@ func FundingGain(s *State, b *balance.Balance) float64 {
 	return g
 }
 
+func RoundBonus(s *State) float64 { return math.Max(1, s.Prestige.RoundMult) }
+
 func Funding(s *State, b *balance.Balance) FundingPreview {
 	p := &b.Prestige.Layer2
 	pv := FundingPreview{
@@ -48,6 +52,8 @@ func Funding(s *State, b *balance.Balance) FundingPreview {
 	pv.Allowed = s.IsUnlocked(UnlockLayer2) && pv.Have >= pv.Need && pv.Gain > 0
 	pv.CapitalAfter = pv.CapitalNow + pv.Gain
 	pv.Valuation = Valuation(s, b).Valuation
+	pv.RoundMult = RoundBonus(s)
+	pv.RoundMultNew = econ.RoundBank(pv.RoundMult, econ.Layer1Bonus(s.Prestige.Params, b.Prestige.Layer1.BonusPerParam), p.RoundBankShare)
 	return pv
 }
 
@@ -71,6 +77,7 @@ func fundingRound(s *State, b *balance.Balance, c *Command, out []Event) []Event
 	round := pr.RoundIndex
 	pr.RoundIndex++
 	pr.ResetsL2++
+	pr.RoundMult = pv.RoundMultNew
 	s.Investors.Bonus = 0
 	pr.Params = 0
 	pr.VersionIndex = 0

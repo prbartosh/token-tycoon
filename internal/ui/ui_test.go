@@ -196,7 +196,7 @@ func TestSelectionAndUpgrades(t *testing.T) {
 func TestTabsKeysAndHelp(t *testing.T) {
 	h := newHarness(t, i18n.EN, 100, 30, nil)
 	h.key("4")
-	h.contains(h.cat.T("ui.tab.locked", h.cat.T("unlock.infra"), "$ 10M"))
+	h.contains(h.cat.T("ui.tab.locked", h.cat.T("unlock.infra"), "$ 2.1B"))
 	h.key("h", "l")
 	if h.m.tab != tabInfra {
 		t.Fatal("h and l must not switch tabs")

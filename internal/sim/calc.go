@@ -9,6 +9,11 @@ import (
 	"token-tycoon/internal/infra"
 )
 
+const (
+	MaxRate  = 1e280
+	MaxStock = 1e300
+)
+
 type Derived struct {
 	CycleS       [N]float64
 	PerCycle     [N]float64
@@ -53,6 +58,7 @@ type Derived struct {
 	SalaryShare  float64
 	TokensPerSec float64
 	AGIMult      float64
+	RoundMult    float64
 
 	Market MarketView
 	Train  TrainView
@@ -100,7 +106,7 @@ func HypoOf(s *State) Hypo {
 			CritChance:  s.ResMods.CritChance,
 			CardChance:  s.ResMods.CardChance,
 			Salary:      s.Derived.Talent.Salary,
-			ProfitMult:  s.Derived.AGIMult,
+			ProfitMult:  math.Min(s.Derived.AGIMult*s.Derived.RoundMult, MaxRate),
 		},
 	}
 	for i := range s.Businesses {
@@ -158,10 +164,10 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 	}
 	d.MinOwned = minOwned
 	d.GlobalMS = max(h.GlobalEarned, econ.GlobalMilestones(minOwned, m.GlobalThresholds, m.GlobalEvery))
-	d.GlobalMult = econ.MultPow(m.GlobalMult, d.GlobalMS) *
-		econ.Layer1Bonus(h.Params, b.Prestige.Layer1.BonusPerParam) * cm.ProfitAll
+	d.GlobalMult = math.Min(econ.MultPow(m.GlobalMult, d.GlobalMS)*
+		econ.Layer1Bonus(h.Params, b.Prestige.Layer1.BonusPerParam)*cm.ProfitAll, MaxRate)
 	if x := h.Extra.ProfitMult; x > 0 {
-		d.GlobalMult *= x
+		d.GlobalMult = math.Min(d.GlobalMult*x, MaxRate)
 	}
 	d.CritChance = math.Min(0.5, b.Crit.Chance+cm.CritChance+h.Extra.CritChance)
 	d.CritMult = b.Crit.Mult + cm.CritMult
@@ -208,7 +214,7 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 		d.CostMult[i] = costMult[i]
 		d.ComputeUnit[i] = bs.Compute * computeMult[i]
 		need += d.ComputeUnit[i] * float64(owned)
-		d.PerCycle[i] = bs.Tokens * float64(owned) * d.ProfitMult[i] * d.GlobalMult * d.Price * d.EventMult[i]
+		d.PerCycle[i] = math.Min(math.Min(bs.Tokens*float64(owned)*d.ProfitMult[i], MaxRate)*d.GlobalMult, MaxRate) * d.Price * d.EventMult[i]
 		d.Continuous[i] = d.CycleS[i] < b.BusinessDefaults.ContinuousBarBelowS
 	}
 	evaluateInfra(b, h, d, need)
@@ -217,7 +223,7 @@ func Evaluate(b *balance.Balance, h *Hypo, d *Derived) {
 	net := d.Throttle * d.NetMult
 	for i := range N {
 		d.PerCycle[i] *= net
-		d.PerSec[i] = d.PerCycle[i] / d.CycleS[i] * d.CritEV
+		d.PerSec[i] = math.Min(d.PerCycle[i]/d.CycleS[i]*d.CritEV, MaxRate)
 	}
 }
 
@@ -281,6 +287,7 @@ func Recompute(s *State, b *balance.Balance) {
 	computeResearch(s, b)
 	computeTalent(s, b)
 	s.Derived.AGIMult = AGIProfitMult(s, b)
+	s.Derived.RoundMult = RoundBonus(s)
 	ev := timedEvent(s, b)
 	evaluateMarket(s, b, ev)
 	s.Derived.Train.TrainShare, s.Derived.Train.SynthShare = computeReserve(s, b)
@@ -329,21 +336,6 @@ func ResolveQty(s *State, b *balance.Balance, i, qty int) (int, float64) {
 		qty = 1
 	}
 	return qty, BusinessCost(s, b, i, qty)
-}
-
-func UnlockETA(s *State, b *balance.Balance, u Unlock) float64 {
-	t := UnlockThreshold(u, b)
-	have := s.Lifetime.Total
-	if u == UnlockPrestige1 {
-		have = s.Lifetime.Run
-	}
-	if have >= t {
-		return 0
-	}
-	if s.Derived.IncomePerSec <= 0 {
-		return math.Inf(1)
-	}
-	return (t - have) / s.Derived.IncomePerSec
 }
 
 func MinutesOfIncome(s *State, minutes float64) float64 {

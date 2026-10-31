@@ -135,4 +135,5 @@ func (m *Model) modelRows(t *tabList) {
 			th.Text.Render(m.cell(c.T("ui.model.params", m.num(md.Params)), 14))+
 			th.Dim.Render(m.cell(c.T("ui.model.age", m.dur(s.Clock-md.ReleasedS)), 14))+th.Text.Render(m.segName(md.Segment)))
 	}
+	m.archiveRows(t)
 }

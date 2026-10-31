@@ -108,6 +108,9 @@ func (m *Model) systemEvent(e *sim.Event, quiet bool) {
 		m.spark, m.sparkN, m.sparkAcc, m.sparkSteps = [sparkLen]float64{}, 0, 0, 0
 		m.sel = row{kind: rowBusiness}
 		m.scroll = 0
+		if !quiet {
+			m.startPrestige(e)
+		}
 	case sim.EvCard:
 		name := c.T(i18n.CardKey(m.b.Card[e.Index].ID))
 		if e.Count > 1 {
@@ -150,8 +153,26 @@ func (m *Model) systemEvent(e *sim.Event, quiet bool) {
 		name := m.modelName(e.Index)
 		msg, kind, toast = c.T("msg.model_release", name, fixed(e.Value, 1), e.Count, pct(e.Amount)), anim.KindCrit, true
 		if !quiet {
-			m.modal = modal{kind: modalRelease, name: name, bench: e.Value, share: e.Amount, rank: e.Count}
+			m.startRelease(e, name)
 		}
+	case sim.EvReleasePending:
+		msg, kind, toast = c.T("msg.release_pending", m.pendingName(), fixed(e.Value, 1)), anim.KindMilestone, true
+		m.later = false
+		m.ring = true
+		if !quiet {
+			m.openChoice()
+		}
+	case sim.EvModelArchived:
+		key := "msg.archived_new"
+		if e.Count == sim.ArchivedDisplaced {
+			key = "msg.archived_old"
+		}
+		msg = c.T(key, m.archivedName(e.Index), fixed(e.Value, 1))
+		toast = e.Count == sim.ArchivedNew
+	case sim.EvArchiveSwap:
+		msg = c.T("msg.archive_swap", m.modelName(e.Index), fixed(e.Value, 1))
+	case sim.EvArchiveDeleted:
+		msg = c.T("msg.archive_deleted")
 	case sim.EvTrainQueued:
 		msg = c.T("msg.train_queued", m.num(e.Value), m.num(e.Amount))
 	case sim.EvTrainCancel:
@@ -201,9 +222,7 @@ func (m *Model) systemEvent(e *sim.Event, quiet bool) {
 		m.sel = row{kind: rowBusiness}
 		m.scroll = 0
 		if !quiet {
-			m.modal = modal{kind: modalFunded, name: name, share: e.Amount}
-			m.anim.Counter.Jump(0)
-			m.anim.Counter.Set(e.Value)
+			m.startFunding(e, name)
 		}
 	case sim.EvResearchStart:
 		msg = c.T("msg.research_start", m.nodeName(e.Index), m.num(e.Amount))
@@ -231,6 +250,7 @@ func (m *Model) systemEvent(e *sim.Event, quiet bool) {
 	case sim.EvCompliance:
 		msg = c.T("msg.compliance", m.regionName(e.Index), m.money(e.Amount))
 	case sim.EvIncident:
+		m.ring = true
 		msg, kind, toast = c.T("msg.incident", m.incidentName(e.Index), strings.ToUpper(m.b.Safety.Key), m.dur(e.Value)), anim.KindWarn, true
 	case sim.EvIncidentOK:
 		msg, kind, toast = c.T("msg.incident_ok", m.incidentName(e.Index), fixed(e.Value, 0)), anim.KindCrit, true

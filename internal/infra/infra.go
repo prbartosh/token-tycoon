@@ -19,8 +19,6 @@ func IsPeak(clock float64, e *balance.Energy) bool {
 	return h >= e.GridPeakHours[0] && h < e.GridPeakHours[1]
 }
 
-// EnergyIndex depends only on seed and game clock (DESIGN 16.6: never saved):
-// a daily sine peaking mid peak window plus interpolated hourly hash noise.
 func EnergyIndex(seed uint64, clock float64, e *balance.Energy) float64 {
 	peakMid := (e.GridPeakHours[0] + e.GridPeakHours[1]) / 2
 	h := HourOfDay(clock)

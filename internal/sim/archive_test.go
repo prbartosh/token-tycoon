@@ -225,3 +225,21 @@ func TestAGIInvestPortion(t *testing.T) {
 		t.Fatalf("missing amount: stage %d money %v", s.AGI.Stage, s.Money)
 	}
 }
+
+func TestLateDecisionReleasesFresh(t *testing.T) {
+	b := bal(t)
+	s, queue := fullModels(t)
+	queue(true)
+	Step(s, b, 1, nil, nil)
+	if len(s.Training.Pending) != 1 {
+		t.Fatalf("pending %+v", s.Training.Pending)
+	}
+	for range 100 {
+		Step(s, b, 60, nil, nil)
+	}
+	Step(s, b, 0, []Command{ResolveRelease(1)}, nil)
+	md := s.Training.Models[len(s.Training.Models)-1]
+	if md.ReleasedS != s.Clock {
+		t.Fatalf("model waiting for a decision aged on the market: released %v, clock %v", md.ReleasedS, s.Clock)
+	}
+}

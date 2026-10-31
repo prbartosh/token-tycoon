@@ -329,6 +329,7 @@ type PrestigeLayer1 struct {
 	ParamDivisor     float64  `toml:"param_divisor"`
 	ParamExponent    float64  `toml:"param_exponent"`
 	BonusPerParam    float64  `toml:"bonus_per_param"`
+	LeapS            float64  `toml:"leap_s"`
 	Versions         []string `toml:"versions"`
 }
 
@@ -337,6 +338,7 @@ type PrestigeLayer2 struct {
 	CapitalCoef      float64  `toml:"capital_coef"`
 	CapitalLogOffset float64  `toml:"capital_log_offset"`
 	CapitalExponent  float64  `toml:"capital_exponent"`
+	RoundBankShare   float64  `toml:"round_bank_share"`
 	Rounds           []string `toml:"rounds"`
 	ValuationMult    float64  `toml:"valuation_mult"`
 }

@@ -55,7 +55,7 @@ func (m *Model) contractRows(t *tabList) {
 	t.blank()
 	m.section(t, c.T("ui.sec.contracts", len(s.Contracts), sim.ContractSlots(s, b)))
 	t.text(th.Dim.Render(c.T("ui.contracts.summary", fixed(s.Market.Reputation, 0), pct(s.Market.Reputation*b.Contracts.RepRewardBonus),
-		m.num(s.Derived.TokensPerSec), fixed(sim.BestBenchmark(s, b), 1))))
+		m.num(sim.SteadyTokensPerSec(s)), fixed(sim.BestBenchmark(s, b), 1))))
 	for i := range s.Contracts {
 		ct := &s.Contracts[i]
 		var bar strings.Builder
@@ -77,7 +77,7 @@ func (m *Model) contractRows(t *tabList) {
 			st = th.Dim
 		}
 		need := 0.0
-		if p := s.Derived.TokensPerSec * o.DurationS; p > 0 {
+		if p := sim.SteadyTokensPerSec(s) * o.DurationS; p > 0 {
 			need = o.Volume / p
 		}
 		t.item(actOffer, i, st.Render(m.cell(c.T("ui.contracts.offer", o.ID), 10))+

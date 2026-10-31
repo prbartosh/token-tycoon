@@ -94,7 +94,9 @@ func TestThrottleRacksCloudAndSellback(t *testing.T) {
 	b := bal(t)
 	s := infraState(t, b)
 	s.Money = 1e15
-	Step(&s, b, 0, []Command{Buy(5, 100)}, nil)
+	s.Businesses[5].Owned = 200
+	Recompute(&s, b)
+	Step(&s, b, 0, nil, nil)
 	d := &s.Derived
 	if !(d.Throttle < 1) {
 		t.Fatalf("expected throttling, need %v cap %v", d.ComputeNeed, d.ComputeCap)
@@ -229,6 +231,7 @@ func prestigeReady(t testing.TB, b *balance.Balance) State {
 
 func TestPrestigeLayer1(t *testing.T) {
 	b := bal(t)
+	b.Prestige.Layer1.LeapS = 0
 	s := NewState(b, 1)
 	s.Lifetime.Run = 1e13
 	evs := Step(&s, b, 0, []Command{PrestigeReset()}, nil)
@@ -270,6 +273,26 @@ func TestPrestigeLayer1(t *testing.T) {
 	evs = Step(&s, b, 0, []Command{PrestigeReset()}, nil)
 	if evs[0].Reason != RejectLocked {
 		t.Fatal("second prestige allowed with empty run")
+	}
+}
+
+func TestPrestigeLeapLimit(t *testing.T) {
+	b := bal(t)
+	s := prestigeReady(t, b)
+	s.Lifetime.Run = 1e20
+	full := NewState(b, 1)
+	b0 := bal(t)
+	b0.Prestige.Layer1.LeapS = 0
+	full.Lifetime.Run = s.Lifetime.Run
+	raw := Layer1Gain(&full, b0)
+	limit := b.Prestige.Layer1.ParamCoef * (s.Clock - s.Prestige.RunStartS) / b.Prestige.Layer1.LeapS
+	got := Layer1Gain(&s, b)
+	if !(got < raw && got < limit && got > limit*0.9) {
+		t.Fatalf("leap gain %v raw %v limit %v", got, raw, limit)
+	}
+	s.Prestige.RunStartS = s.Clock
+	if g := Layer1Gain(&s, b); g != 0 {
+		t.Fatalf("zero-length run gains %v", g)
 	}
 }
 

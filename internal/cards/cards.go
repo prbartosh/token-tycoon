@@ -31,14 +31,6 @@ type Mods struct {
 	SetsComplete   [NumRarities]bool
 }
 
-func Neutral() Mods {
-	m := Mods{ProfitAll: 1, CycleMult: 1, CostMult: 1, ComputeMult: 1, EnergyCost: 1, RackCost: 1}
-	for i := range m.ProfitBiz {
-		m.ProfitBiz[i] = 1
-	}
-	return m
-}
-
 func LevelBonus(b *balance.Balance, value float64, level int) float64 {
 	if level <= 0 {
 		return 0

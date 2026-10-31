@@ -13,6 +13,7 @@ type PrestigePreview struct {
 	Allowed      bool
 	NeedRun      float64
 	Gain         float64
+	RawGain      float64
 	ParamsNow    float64
 	ParamsAfter  float64
 	BonusNow     float64
@@ -23,9 +24,14 @@ type PrestigePreview struct {
 	VersionAfter int
 }
 
-func Layer1Gain(s *State, b *balance.Balance) float64 {
+func Layer1Raw(s *State, b *balance.Balance) float64 {
 	p := &b.Prestige.Layer1
 	return econ.Layer1Params(s.Lifetime.Run, p.ParamCoef, p.ParamDivisor, p.ParamExponent)
+}
+
+func Layer1Gain(s *State, b *balance.Balance) float64 {
+	p := &b.Prestige.Layer1
+	return econ.Layer1Leap(Layer1Raw(s, b), s.Prestige.Params, p.ParamCoef, s.Clock-s.Prestige.RunStartS, p.LeapS)
 }
 
 // Preview estimates the time to return to the current run revenue after the
@@ -37,6 +43,7 @@ func Preview(s *State, b *balance.Balance) PrestigePreview {
 	pv := PrestigePreview{
 		NeedRun:    p.UnlockRunRevenue,
 		Gain:       Layer1Gain(s, b),
+		RawGain:    Layer1Raw(s, b),
 		ParamsNow:  s.Prestige.Params,
 		RunS:       math.Max(0, s.Clock-s.Prestige.RunStartS),
 		VersionNow: s.Prestige.VersionIndex,

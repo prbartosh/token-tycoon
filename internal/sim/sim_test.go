@@ -66,7 +66,7 @@ func TestBuyManagerAndUndo(t *testing.T) {
 	s := NewState(b, 1)
 	s.Money = 100
 	evs := Step(&s, b, 0.1, []Command{HireManager(0)}, nil)
-	if !s.Businesses[0].Manager || s.Money != 40 || evs[0].Kind != EvManager {
+	if !s.Businesses[0].Manager || s.Money != 100-b.ManagerCost(0) || evs[0].Kind != EvManager {
 		t.Fatalf("manager: %+v money %v", evs, s.Money)
 	}
 	evs = Step(&s, b, 0.1, []Command{UndoLast()}, evs[:0])
@@ -88,7 +88,7 @@ func TestBuyManagerAndUndo(t *testing.T) {
 func TestBulkBuyAndMilestones(t *testing.T) {
 	b := bal(t)
 	s := NewState(b, 1)
-	s.Money = econ.BulkCost(10, 1.07, 1, 24)
+	s.Money = econ.BulkCost(b.Businesses[0].Cost, b.Businesses[0].R, 1, 24)
 	evs := Step(&s, b, 0, []Command{Buy(0, QtyMax)}, nil)
 	if s.Businesses[0].Owned != 25 {
 		t.Fatalf("owned %d after MAX", s.Businesses[0].Owned)
@@ -129,17 +129,17 @@ func TestGlobalMilestones(t *testing.T) {
 	}
 	var d Derived
 	Evaluate(b, &h, &d)
-	if d.GlobalMS != 4 || d.GlobalMult != 16 {
+	if d.GlobalMS != 6 || d.GlobalMult != 64 {
 		t.Fatalf("global %d x%v", d.GlobalMS, d.GlobalMult)
 	}
 	for i := range N {
 		h.Owned[i] = 1000
 	}
 	Evaluate(b, &h, &d)
-	if d.GlobalMS != 12 {
-		t.Fatalf("global at 1000 = %d, want 12 (forever every 100)", d.GlobalMS)
+	if d.GlobalMS != 21 {
+		t.Fatalf("global at 1000 = %d, want 21 (forever every 50)", d.GlobalMS)
 	}
-	if d.ProfitMS[0] != 9 || d.SpeedMS[0] != 3 {
+	if d.ProfitMS[0] != 37 || d.SpeedMS[0] != 3 {
 		t.Fatalf("profit %d speed %d", d.ProfitMS[0], d.SpeedMS[0])
 	}
 }
@@ -305,8 +305,8 @@ func TestDeterminism(t *testing.T) {
 func TestUnlocksByRevenue(t *testing.T) {
 	b := bal(t)
 	s := NewState(b, 1)
-	s.Lifetime.Total = 1e7
-	s.Lifetime.Run = 1e12
+	s.Lifetime.Total = max(b.Infra.UnlockLifetime, b.Events.UnlockLifetime, b.Cards.UnlockLifetime)
+	s.Lifetime.Run = b.Prestige.Layer1.UnlockRunRevenue
 	evs := Step(&s, b, 0.1, nil, nil)
 	got := map[Unlock]bool{}
 	for _, e := range evs {

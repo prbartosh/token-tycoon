@@ -11,8 +11,13 @@ import (
 
 func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
-	switch k {
-	case "ctrl+c", "q":
+	if k == "ctrl+c" {
+		return m, tea.Quit
+	}
+	if m.pal.open {
+		return m, m.paletteKey(msg)
+	}
+	if k == "q" {
 		return m, tea.Quit
 	}
 	if cmd, ok := m.reaction(k); ok {
@@ -27,15 +32,19 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.modalKey(k)
 	}
 	if m.help {
-		switch k {
-		case "?", "esc", "enter":
-			m.help = false
-		}
+		m.helpKey(k)
+		return m, nil
+	}
+	if k == "esc" && m.cer.active() {
+		m.skipCeremony()
 		return m, nil
 	}
 	switch k {
+	case ":", "ctrl+p":
+		m.openPalette()
+		return m, nil
 	case "?":
-		m.help = true
+		m.openHelp()
 		return m, nil
 	case "left":
 		m.setTab((m.tab + numTabs - 1) % numTabs)
@@ -47,20 +56,13 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.setTab(int(k[0] - '1'))
 		return m, nil
 	case "n":
-		if m.notation() == 0 {
-			m.s.Settings.Notation = "scientific"
-		} else {
-			m.s.Settings.Notation = "letters"
-		}
-		m.setStatus(m.cat.T("ui.msg.notation", m.cat.T("ui.notation."+m.notation().String())), false)
+		m.toggleNotation()
 		return m, nil
 	case "a":
-		m.s.Settings.Advisor = !m.s.Settings.Advisor
-		m.setStatus(m.cat.T(onOff("ui.msg.advisor", m.s.Settings.Advisor)), false)
+		m.toggleAdvisor()
 		return m, nil
 	case "c":
-		m.s.Settings.Colorblind = !m.s.Settings.Colorblind
-		m.setStatus(m.cat.T(onOff("ui.msg.colorblind", m.s.Settings.Colorblind)), false)
+		m.toggleColorblind()
 		return m, nil
 	case "space":
 		return m, m.exec(sim.Boost(m.selBusiness()))
@@ -173,6 +175,10 @@ func (m *Model) willStart(i int) bool {
 }
 
 func (m *Model) click(ms tea.Mouse) tea.Cmd {
+	if m.pal.open {
+		m.closePalette()
+		return nil
+	}
 	if m.away.open {
 		m.away.open = false
 		return nil
@@ -181,8 +187,12 @@ func (m *Model) click(ms tea.Mouse) tea.Cmd {
 		m.help = false
 		return nil
 	}
-	if m.modal.kind == modalRelease || m.modal.kind == modalFunded || m.modal.kind == modalEnding {
+	if m.modal.kind == modalEnding {
 		m.modal = modal{}
+		return nil
+	}
+	if m.cer.active() && m.modal.kind == modalNone {
+		m.skipCeremony()
 		return nil
 	}
 	if ms.Button != tea.MouseLeft {
@@ -245,7 +255,16 @@ func (m *Model) tabClick(ms tea.Mouse, g geometry) tea.Cmd {
 }
 
 func (m *Model) wheel(ms tea.Mouse) {
-	if m.help || m.away.open || m.modal.kind != modalNone {
+	if m.help {
+		switch ms.Button {
+		case tea.MouseWheelUp:
+			m.helpKey("up")
+		case tea.MouseWheelDown:
+			m.helpKey("down")
+		}
+		return
+	}
+	if m.away.open || m.modal.kind != modalNone || m.pal.open {
 		return
 	}
 	if m.tab != tabBusinesses {

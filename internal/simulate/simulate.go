@@ -32,6 +32,7 @@ type Config struct {
 	ComboRate     float64
 	ClickLatencyS float64
 	StepS         float64
+	Continuous    bool
 }
 
 func (c *Config) defaults() {
@@ -192,6 +193,7 @@ type bot struct {
 	nextMkt     float64
 	nextTrain   float64
 	nextM4      float64
+	activeEnd   float64
 }
 
 func Run(b *balance.Balance, cfg Config) (*Result, error) {
@@ -218,7 +220,7 @@ func Run(b *balance.Balance, cfg Config) (*Result, error) {
 	switch {
 	case cfg.Strategy == Passive:
 		bt.runSessions(cfg.SessionS, 1)
-	case cfg.Strategy == Greedy && b.Pacing.GreedySessionMin < 1440:
+	case cfg.Strategy == Greedy && !cfg.Continuous && b.Pacing.GreedySessionMin < 1440:
 		bt.runSessions(b.Pacing.GreedySessionMin*60, b.Pacing.GreedySessionsDay)
 	default:
 		bt.active(cfg.Duration)
@@ -276,6 +278,7 @@ func (bt *bot) noteIncome() {
 
 func (bt *bot) active(d float64) {
 	end := bt.s.Clock + d
+	bt.activeEnd = end
 	dt := bt.cfg.StepS
 	for bt.s.Clock < end-1e-9 {
 		step := math.Min(dt, end-bt.s.Clock)
@@ -382,7 +385,7 @@ func (bt *bot) clicks(dt float64) {
 
 func isGoal(k sim.EventKind) bool {
 	switch k {
-	case sim.EvUnlock, sim.EvGPUGen, sim.EvFunding, sim.EvAGIStage, sim.EvAGIEnding, sim.EvSILevel:
+	case sim.EvUnlock, sim.EvGPUGen, sim.EvFunding, sim.EvResearchDone, sim.EvAGIStage, sim.EvAGIEnding, sim.EvSILevel:
 		return true
 	}
 	return false
@@ -394,7 +397,7 @@ func (bt *bot) observe(evs []sim.Event, t float64) {
 		if isGoal(e.Kind) {
 			bt.res.Goals = append(bt.res.Goals, GoalAt{T: t, Kind: e.Kind, Index: e.Index})
 		}
-		if (isGoal(e.Kind) || e.Kind == sim.EvResearchDone) && bt.session != nil && bt.session.FirstUnlockT < 0 {
+		if isGoal(e.Kind) && bt.session != nil && bt.session.FirstUnlockT < 0 {
 			bt.session.FirstUnlockT = math.Max(0, t-bt.session.StartT)
 		}
 		switch e.Kind {
@@ -471,7 +474,7 @@ func (bt *bot) sample(force bool) {
 		T: t, Money: s.Money, IncomePerS: s.Derived.IncomePerSec, TokensPerS: s.Derived.TokensPerSec, Lifetime: s.Lifetime.Total,
 		Run: s.Lifetime.Run, Params: s.Prestige.Params, Capital: s.Prestige.Capital,
 		Unlocks: s.Unlocks.Count(), Upgrades: s.Upgrades.Count(), Combo: s.Combo.Mult,
-		Online:   bt.session != nil || bt.cfg.Strategy != Passive,
+		Online:   bt.session != nil || bt.res.SessionsDay == 0,
 		Throttle: s.Derived.Throttle, Cards: s.CardMods.Unique, Prestiges: s.Prestige.ResetsL1,
 	}
 	if mv := &s.Derived.Market; mv.On {

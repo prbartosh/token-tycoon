@@ -145,3 +145,33 @@ func TestCritEV(t *testing.T) {
 		t.Error("Payback")
 	}
 }
+
+func TestLayer1Leap(t *testing.T) {
+	if got := Layer1Leap(200, 0, 100, 3600, 0); got != 200 {
+		t.Errorf("no limit = %v", got)
+	}
+	if got := Layer1Leap(200, 0, 100, 3600, 1800); got != 100 {
+		t.Errorf("equal raw and limit = %v, want 100", got)
+	}
+	if got := Layer1Leap(1e305, 1e300, 100, 86400, 1800); !(got > 4.7e301 && got < 4.9e301) {
+		t.Errorf("huge values = %v", got)
+	}
+	if got := Layer1Leap(1e6, 0, 100, 0, 1800); got != 0 {
+		t.Errorf("empty run = %v", got)
+	}
+	if got := Layer1Leap(-5, 0, 100, 60, 1800); got != 0 {
+		t.Errorf("negative raw = %v", got)
+	}
+}
+
+func TestRoundBank(t *testing.T) {
+	if got := RoundBank(1, 1e10, 1); got != 1e10 {
+		t.Errorf("full bank = %v", got)
+	}
+	if got := RoundBank(100, 1e10, 0.5); !near(got, 1e7) {
+		t.Errorf("half bank = %v", got)
+	}
+	if got := RoundBank(0, 0.5, 1); got != 1 {
+		t.Errorf("degenerate = %v", got)
+	}
+}

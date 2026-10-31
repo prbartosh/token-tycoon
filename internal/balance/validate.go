@@ -114,6 +114,9 @@ func (b *Balance) Validate() error {
 		v.nonNeg(p+".compute", bs.Compute)
 		v.nonNeg(p+".manager_cost", bs.ManagerCost)
 		v.nonNeg(p+".unlock_lifetime", bs.UnlockLifetime)
+		if i > 0 && bs.UnlockLifetime < b.Businesses[i-1].UnlockLifetime {
+			v.add(p+".unlock_lifetime", "businesses must unlock in tier order")
+		}
 	}
 	bizIDs := v.uniqueIDs("business", ids)
 	bd := b.BusinessDefaults
@@ -488,6 +491,7 @@ func (b *Balance) Validate() error {
 	v.positive("prestige.layer1.param_divisor", p1.ParamDivisor)
 	v.positive("prestige.layer1.param_exponent", p1.ParamExponent)
 	v.nonNeg("prestige.layer1.bonus_per_param", p1.BonusPerParam)
+	v.nonNeg("prestige.layer1.leap_s", p1.LeapS)
 	if len(p1.Versions) == 0 {
 		v.add("prestige.layer1.versions", "must not be empty")
 	}
@@ -498,6 +502,10 @@ func (b *Balance) Validate() error {
 	v.positive("prestige.layer2.unlock_lifetime", p2.UnlockLifetime)
 	v.positive("prestige.layer2.capital_coef", p2.CapitalCoef)
 	v.positive("prestige.layer2.capital_exponent", p2.CapitalExponent)
+	v.nonNeg("prestige.layer2.round_bank_share", p2.RoundBankShare)
+	if p2.RoundBankShare > 1 {
+		v.add("prestige.layer2.round_bank_share", "must be <= 1 (a round cannot create progress from nothing)")
+	}
 	if len(p2.Rounds) == 0 {
 		v.add("prestige.layer2.rounds", "must not be empty")
 	}

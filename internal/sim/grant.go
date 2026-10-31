@@ -2,8 +2,6 @@ package sim
 
 import "token-tycoon/internal/balance"
 
-// civilDays converts a YYYY-MM-DD date to days since 1970-01-01 (Howard
-// Hinnant's days_from_civil), so the streak works without a clock.
 func civilDays(date string) (int, bool) {
 	if len(date) != 10 || date[4] != '-' || date[7] != '-' {
 		return 0, false

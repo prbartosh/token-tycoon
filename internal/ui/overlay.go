@@ -13,7 +13,7 @@ import (
 	"token-tycoon/internal/ui/widgets"
 )
 
-const helpLines = 18
+const helpKeyW = 14
 
 func (m *Model) overlays(g geometry) []*lipgloss.Layer {
 	var ls []*lipgloss.Layer
@@ -22,12 +22,16 @@ func (m *Model) overlays(g geometry) []*lipgloss.Layer {
 	}
 	ls = m.toasts(ls)
 	switch {
+	case m.pal.open:
+		ls = append(ls, m.topCentered(m.paletteBox(), 12))
 	case m.away.open:
 		ls = append(ls, m.centered(m.awayBox(), 10))
 	case m.modal.kind != modalNone:
 		ls = append(ls, m.centered(m.modalBox(), 10))
 	case m.help:
 		ls = append(ls, m.centered(m.helpBox(), 10))
+	case m.cer.active():
+		ls = append(ls, m.centered(m.ceremonyBox(), 8))
 	}
 	return ls
 }
@@ -135,6 +139,11 @@ func (m *Model) centered(box string, z int) *lipgloss.Layer {
 	return lipgloss.NewLayer(box).X(x).Y(y).Z(z)
 }
 
+func (m *Model) topCentered(box string, z int) *lipgloss.Layer {
+	bw := lipgloss.Width(box)
+	return lipgloss.NewLayer(box).X(max(0, (m.width-bw)/2)).Y(min(topRows-1, max(0, m.height-lipgloss.Height(box)))).Z(z)
+}
+
 func (m *Model) box(title string, body []string, w int) string {
 	th := m.th
 	inner := w - 2
@@ -154,17 +163,63 @@ func (m *Model) box(title string, body []string, w int) string {
 	return sb.String()
 }
 
+var helpTabIDs = [numTabs]string{"businesses", "models", "market", "infra", "research", "rules", "stats"}
+
+func (m *Model) helpEntries(dst []string) []string {
+	th := m.th
+	line := func(key string) string {
+		k, desc, _ := strings.Cut(m.cat.T(key), "|")
+		return " " + th.Key.Render(widgets.Fit(k, helpKeyW)) + th.Text.Render(desc)
+	}
+	pre := "ui.help." + helpTabIDs[m.tab] + "."
+	if m.cat.Has(pre + "1") {
+		dst = append(dst, " "+th.Gold.Render(strings.ToUpper(m.cat.T(tabKeys[m.tab]))))
+		for i := 1; m.cat.Has(pre + strconv.Itoa(i)); i++ {
+			dst = append(dst, line(pre+strconv.Itoa(i)))
+		}
+		dst = append(dst, "", " "+th.Gold.Render(m.cat.T("ui.help.general")))
+	}
+	for i := 1; m.cat.Has("ui.help." + strconv.Itoa(i)); i++ {
+		dst = append(dst, line("ui.help."+strconv.Itoa(i)))
+	}
+	return dst
+}
+
+func (m *Model) helpRows() int { return max(3, m.height-6) }
+
+func (m *Model) helpKey(k string) {
+	n := len(m.helpEntries(m.lines[:0]))
+	maxTop := max(0, n-m.helpRows())
+	switch k {
+	case "?", "esc", "enter":
+		m.help = false
+	case "up", "k":
+		m.helpTop--
+	case "down", "j":
+		m.helpTop++
+	case "pgup":
+		m.helpTop -= m.helpRows()
+	case "pgdown", "space":
+		m.helpTop += m.helpRows()
+	case "home":
+		m.helpTop = 0
+	case "end":
+		m.helpTop = maxTop
+	}
+	m.helpTop = max(0, min(m.helpTop, maxTop))
+}
+
 func (m *Model) helpBox() string {
 	w := min(helpW, m.width-2)
-	th := m.th
-	body := make([]string, 0, helpLines+2)
-	body = append(body, "")
-	for i := 1; i <= helpLines; i++ {
-		k, desc, _ := strings.Cut(m.cat.T("ui.help."+strconv.Itoa(i)), "|")
-		body = append(body, " "+th.Key.Render(widgets.Fit(k, 14))+th.Text.Render(desc))
+	all := m.helpEntries(make([]string, 0, 40))
+	rows := m.helpRows()
+	top := max(0, min(m.helpTop, len(all)-rows))
+	body := all[top:min(len(all), top+rows)]
+	title := m.cat.T("ui.help.title")
+	if len(all) > rows {
+		body = append(body[:len(body):len(body)], widgets.Center(m.th.KeyText.Render(m.cat.T("ui.help.scroll", top+1, min(len(all), top+rows), len(all))), w-2))
 	}
-	body = append(body, "")
-	return m.box(m.cat.T("ui.help.title"), body, w)
+	return m.box(title, body, w)
 }
 
 func (m *Model) awayBox() string {

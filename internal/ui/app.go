@@ -17,6 +17,7 @@ import (
 	"token-tycoon/internal/sim"
 	"token-tycoon/internal/ui/anim"
 	"token-tycoon/internal/ui/theme"
+	"token-tycoon/internal/ui/widgets"
 )
 
 type Config struct {
@@ -54,6 +55,7 @@ const (
 	sparkLen     = 60
 	rateWindow   = 5
 	manualDelayS = 1.0
+	bell         = "\a"
 )
 
 const noUnlock = sim.Unlock(255)
@@ -134,6 +136,19 @@ type Model struct {
 	retiring string
 	wiz      wizard
 	ruleLog  []string
+	cer      ceremony
+	ring     bool
+	pal      palette
+	later    bool
+	helpTop  int
+	hist     history
+	plot     widgets.Plot
+	nums     numCache
+	logSeq   int
+	logC     logCache
+	tabC     tabBarCache
+	prefixes [4]string
+	upgC     []upgEntry
 
 	rows   []row
 	lines  []string
@@ -159,6 +174,7 @@ func New(cfg Config) *Model {
 		lines:   make([]string, 0, 64),
 		step:    time.Duration(max(1, b.Engine.SimStepMs)) * time.Millisecond,
 		sel:     row{kind: rowBusiness, idx: 0},
+		upgC:    make([]upgEntry, len(b.Upgrades)),
 	}
 	t0 := now()
 	m.lastSave, m.newsAt = t0, t0
@@ -198,7 +214,7 @@ func (m *Model) desired() time.Duration {
 	switch {
 	case !m.focused:
 		return fpsInterval(e.FPSBackground)
-	case m.anim.Active() || m.revealing() || (m.away.open || m.modal.kind == modalFunded) && m.anim.Counter.Moving():
+	case m.anim.Active() || m.revealing() || m.cer.active() || m.away.open && m.anim.Counter.Moving():
 		return fpsInterval(e.FPSAnimation)
 	}
 	return fpsInterval(e.FPSNormal)
@@ -215,28 +231,37 @@ func (m *Model) kick() tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmd := m.update(msg)
+	if m.ring {
+		m.ring = false
+		if m.s.Settings.Bell {
+			cmd = tea.Batch(cmd, tea.Raw(bell))
+		}
+	}
+	return m, cmd
+}
+
+func (m *Model) update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case frameMsg:
-		return m, m.frame(msg)
+		return m.frame(msg)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.ensureVisible()
-		return m, nil
 	case tea.FocusMsg:
 		m.focused = true
-		return m, m.kick()
+		return m.kick()
 	case tea.BlurMsg:
 		m.focused = false
-		return m, nil
 	case tea.KeyPressMsg:
-		return m.key(msg)
+		_, cmd := m.key(msg)
+		return cmd
 	case tea.MouseClickMsg:
-		return m, m.click(msg.Mouse())
+		return m.click(msg.Mouse())
 	case tea.MouseWheelMsg:
 		m.wheel(msg.Mouse())
-		return m, nil
 	}
-	return m, nil
+	return nil
 }
 
 func (m *Model) frame(msg frameMsg) tea.Cmd {
@@ -256,6 +281,7 @@ func (m *Model) frame(msg frameMsg) tea.Cmd {
 		m.fps = m.fps*0.8 + 0.2/dt.Seconds()
 	}
 	m.autosave(msg.t)
+	m.maybeChoose()
 	if now := m.now(); now.Sub(m.newsAt) >= newsEvery {
 		m.newsAt = now
 		m.newsIdx++
@@ -276,6 +302,7 @@ func (m *Model) advance(dt time.Duration) {
 	}
 	m.anim.Money.Set(m.s.Money)
 	m.anim.Advance(dt.Seconds())
+	m.advanceCeremony(dt.Seconds())
 }
 
 func (m *Model) stepOnce() {
@@ -302,6 +329,7 @@ func (m *Model) catchUp(elapsed float64, show bool) {
 }
 
 func (m *Model) track(earned float64) {
+	m.hist.add(earned, m.step.Seconds())
 	m.sparkAcc += earned
 	m.sparkSteps++
 	if float64(m.sparkSteps)*m.step.Seconds() < 1 {
@@ -355,13 +383,14 @@ func (m *Model) addLog(s string) {
 		m.log = m.log[:logCap-1]
 	}
 	m.log = append(m.log, s)
+	m.logSeq++
 }
 
 func (m *Model) notation() format.Notation { return format.ParseNotation(m.s.Settings.Notation) }
 
-func (m *Model) num(v float64) string { return format.Number(v, m.notation()) }
+func (m *Model) num(v float64) string { return m.nums.get(v, m.notation(), false) }
 
-func (m *Model) money(v float64) string { return format.Money(v, m.notation()) }
+func (m *Model) money(v float64) string { return m.nums.get(v, m.notation(), true) }
 
 func (m *Model) bizName(i int) string {
 	return m.cat.T(i18n.BusinessKey(m.b.Businesses[i].ID))

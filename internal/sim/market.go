@@ -285,15 +285,6 @@ func retireModel(s *State, b *balance.Balance, c *Command, out []Event) []Event 
 	return append(out, Event{Kind: EvModelRetired, Business: -1, Index: i})
 }
 
-func SegmentAlloc(s *State) [NumSegments]float64 { return s.Derived.Market.Alloc }
-
-func RivalRelease(s *State, b *balance.Balance, i int) market.Release {
-	if i < 0 || i >= len(b.Rivals) {
-		return market.Release{K: -1}
-	}
-	return market.LastRelease(s.Seed, i, &b.Rivals[i], s.Clock, b.Market.RivalSpanDays)
-}
-
 func SteadyHype(s *State, b *balance.Balance, freeAlloc float64) float64 {
 	m := &b.Market
 	gain := market.HypeGainPerS(freeAlloc, s.Derived.Market.Quote[market.SegFree].Share, m)

@@ -146,14 +146,11 @@ func (m *Model) m5Stats(row func(key, val string)) {
 		row("ui.stats.agi", strconv.Itoa(min(s.AGI.Stage, len(b.AGIStages)))+"/"+strconv.Itoa(len(b.AGIStages)))
 		row("ui.stats.agi_invested", m.money(s.Stats.AGIInvested))
 	}
-	if s.Stats.FastestRunS > 0 {
-		row("ui.stats.fastest_run", format.Duration(s.Stats.FastestRunS))
-	}
 }
 
 func (m *Model) agiEnter(k tkey) tea.Cmd {
-	if k.idx == m.s.AGI.Stage && !sim.AGIEnded(m.s, m.b) {
-		return m.exec(sim.AGIInvest())
+	if k.idx == m.s.AGI.Stage && !sim.AGIEnded(m.s, m.b) && m.s.AGI.TrainEndsS == 0 {
+		m.openAGIInvest()
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package simulate
 
 import (
 	"bytes"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -72,7 +73,7 @@ func TestStrategies(t *testing.T) {
 		if r.Final.Lifetime.Total <= 0 {
 			t.Fatalf("%s made no money", st)
 		}
-		if st == Passive && (len(r.Sessions) != 2 || r.OfflineS != b.Offline.CapHoursStart*3600) {
+		if st == Passive && (len(r.Sessions) != 2 || r.OfflineS != 2*b.Offline.CapHoursStart*3600) {
 			t.Fatalf("passive sessions %d offline %v", len(r.Sessions), r.OfflineS)
 		}
 	}
@@ -87,7 +88,7 @@ func TestStrategies(t *testing.T) {
 
 func TestGreedyUsesM2Systems(t *testing.T) {
 	b := balance.Default()
-	r, err := Run(b, Config{Duration: 2 * 3600, Strategy: Greedy, Seed: 42})
+	r, err := Run(b, Config{Duration: 2 * 3600, Strategy: Greedy, Seed: 42, Continuous: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,7 @@ func TestGreedyUsesM2Systems(t *testing.T) {
 
 func TestGreedyUsesM3Systems(t *testing.T) {
 	b := balance.Default()
-	r, err := Run(b, Config{Duration: 6 * 3600, Strategy: Greedy, Seed: 42})
+	r, err := Run(b, Config{Duration: 6 * 3600, Strategy: Greedy, Seed: 42, Continuous: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ unlock_lifetime = 1e16
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := Run(b, Config{Duration: 86400, Strategy: Greedy, Seed: 42})
+	r, err := Run(b, Config{Duration: 86400, Strategy: Greedy, Seed: 42, Continuous: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,30 +187,32 @@ id = "asia"
 entry_cost_minutes = 20
 [investors]
 unlock_lifetime = 1e13
+[safety]
+incident_every_h_base = 0.5
 [agi]
-unlock_lifetime = 1e17
+unlock_lifetime = 1e30
 si_every_oom = 1
 [[agi_stage]]
 id = "alignment"
-cost = 1e18
+cost = 1e31
 [[agi_stage]]
 id = "compute"
-cost = 1e19
+cost = 1e32
 [[agi_stage]]
 id = "data"
-cost = 1e20
+cost = 1e33
 [[agi_stage]]
 id = "training"
-cost = 1e21
+cost = 1e34
 [[agi_stage]]
 id = "evaluation"
-cost = 1e22
+cost = 1e35
 `
 	b, err := balance.Parse(balance.DefaultTOML(), []byte(over))
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := Run(b, Config{Duration: 2 * 86400, Strategy: Greedy, Seed: 42})
+	r, err := Run(b, Config{Duration: 2 * 86400, Strategy: Greedy, Seed: 42, Continuous: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +221,7 @@ cost = 1e22
 		t.Fatalf("ending not reached: stages %v lifetime %v", r.AGIStages, s.Lifetime.Total)
 	}
 	if sim.RegionsEntered(s, b) < 2 || s.Stats.IncidentsOK == 0 || s.Stats.Quarters == 0 || s.AGI.SILevel == 0 {
-		t.Fatalf("regions %d incidents %d quarters %d si %d", sim.RegionsEntered(s, b), s.Stats.IncidentsOK, s.Stats.Quarters, s.AGI.SILevel)
+		t.Fatalf("regions %d incidents %d/%d quarters %d si %d agi %v stages %v", sim.RegionsEntered(s, b), s.Stats.IncidentsOK, s.Stats.IncidentsSeen, s.Stats.Quarters, s.AGI.SILevel, r.AGIT, r.AGIStages)
 	}
 	var out bytes.Buffer
 	Report(&out, r, b, i18n.New(i18n.EN))
@@ -228,4 +231,47 @@ cost = 1e22
 	t.Logf("ending at %.1f h, regions %d, incidents %d/%d, quarters %d/%d, achievements %d, SI %d",
 		r.EndingT/3600, sim.RegionsEntered(s, b), s.Stats.IncidentsOK, s.Stats.IncidentsSeen,
 		s.Stats.QuartersBeaten, s.Stats.Quarters, s.Achieved.Count(), s.AGI.SILevel)
+}
+
+func TestChecksPacing(t *testing.T) {
+	b := balance.Default()
+	c := i18n.New(i18n.EN)
+	day := 86400.0
+	r := &Result{
+		Config:       Config{Duration: 30 * day, Strategy: Greedy},
+		ManagerPlayS: 45, InfraPlayS: 25 * 60, PrestigePlayS: 60 * 60, InfraT: 1500, PrestigeT: 3600,
+		Layer2T: 6.2 * day, AGIT: 18.5 * day, EndingT: 28.3 * day, LongestFlat: 60,
+		Sessions: []Session{{StartT: 0, FirstUnlockT: -1}, {StartT: day, FirstUnlockT: 10}},
+	}
+	r.Final.Stats.PlayS = 30 * 3600
+	log := []float64{9, 13, 17, 24, 29, 34, 39, 44, 49, 54, 58, 62, 64, 70, 76, 82, 88, 92, 96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}
+	for d, l := range log {
+		r.DayIncome = append(r.DayIncome, math.Pow(10, l))
+		r.Goals = append(r.Goals, GoalAt{T: float64(d)*day + 100})
+	}
+	fails := func() []string {
+		var out []string
+		for _, ch := range Checks(r, b, c) {
+			if !ch.Pass && !ch.NA {
+				out = append(out, ch.Text)
+			}
+		}
+		return out
+	}
+	if f := fails(); len(f) != 0 {
+		t.Fatalf("expected all criteria to pass: %q", f)
+	}
+	r.DayIncome[2] = 1e25
+	r.Goals = r.Goals[:5]
+	r.EndingT = 20 * day
+	r.Sessions[1].FirstUnlockT = 400
+	if f := fails(); len(f) != 4 {
+		t.Fatalf("expected bands, goals, ending and session failures: %q", f)
+	}
+	r.Config.Strategy = Passive
+	r.EndingT = 45 * day
+	r.Sessions[1].FirstUnlockT = 0
+	if f := fails(); len(f) != 0 {
+		t.Fatalf("passive bot is judged only by its own criteria: %q", f)
+	}
 }

@@ -1,55 +1,351 @@
 {
-  "version": 1,
-  "saved_at": "2026-10-30T14:22:05Z",
-  "seed": 8812734512,
-  "rng": { "events": 1129, "crits": 88213, "cards": 4410, "rivals": 37, "energy": 902 },
-  "clock_s": 412933.4,
-  "money": 1.284e15,
-  "lifetime": { "run": 8.91e16, "total": 4.4e21, "layer2_total": 4.4e21 },
+  "version": 8,
+  "saved_at": "2026-10-31T12:00:00Z",
   "businesses": [
-    { "id": "api_wrapper", "owned": 142, "manager": true, "progress": 0.43 },
-    { "id": "rag_chatbot", "owned": 87, "manager": true, "progress": 0.12 },
-    { "id": "lora_finetune", "owned": 31, "manager": true, "progress": 0.88 },
-    { "id": "vibe_studio", "owned": 12, "manager": false, "progress": 0.0 }
+    {
+      "id": "api_wrapper",
+      "owned": 275,
+      "manager": true,
+      "progress": 0.2760000237371969,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "rag_chatbot",
+      "owned": 100,
+      "manager": true,
+      "progress": 0.8586666745795526,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "lora_finetune",
+      "owned": 100,
+      "manager": true,
+      "progress": 0.5182222261785796,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "vibe_studio",
+      "owned": 102,
+      "manager": true,
+      "progress": 0.4257777797556983,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "agent_swarm",
+      "owned": 103,
+      "manager": true,
+      "progress": 0.5906666676554941,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "reasoning_model",
+      "owned": 80,
+      "manager": true,
+      "progress": 0.5726666669136034,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "gpu_rental",
+      "owned": 0,
+      "manager": false,
+      "progress": 0,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "smr_datacenter",
+      "owned": 0,
+      "manager": false,
+      "progress": 0,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "orbital_dc",
+      "owned": 0,
+      "manager": false,
+      "progress": 0,
+      "running": false,
+      "draw_budget": 5
+    },
+    {
+      "id": "frontier_lab",
+      "owned": 0,
+      "manager": false,
+      "progress": 0,
+      "running": false,
+      "draw_budget": 5
+    }
   ],
-  "upgrades": ["prompt_caching", "quant_4bit", "spec_decoding"],
+  "upgrades": [
+    "prompt_caching",
+    "quant_4bit",
+    "spec_decoding",
+    "kv_cache",
+    "vibe_coding_2",
+    "mcp",
+    "context_10m",
+    "moe",
+    "distillation"
+  ],
+  "unlocks": [
+    "business_1",
+    "business_2",
+    "business_3",
+    "business_4",
+    "business_5",
+    "business_6",
+    "infra",
+    "prestige1",
+    "events",
+    "cards",
+    "market",
+    "safety"
+  ],
+  "research": {
+    "done": [],
+    "active": "",
+    "progress": 0
+  },
+  "seed": 42,
+  "rng": {
+    "events": "7063673a69f8217c25a21d5f335eb02558d9e4c9",
+    "crits": "7063673aa0db43f915aa335a0b6908b1d982ef7b",
+    "cards": "7063673ae26ae831861b429cca8e46d8a3755424",
+    "rivals": "7063673abaee56f32e22300709bc585a244823f2",
+    "energy": "7063673a7bb3c45c597cdb85de4431fa3c80db06",
+    "misc": "7063673afb452912299a545337e9671c45376d5d",
+    "safety": "7063673af7e9f3f88cc04ad6ccf635ee9e9e2fa4"
+  },
+  "clock_s": 86400,
+  "money": 11313383810226.469,
+  "lifetime": {
+    "run": 12051117477436.168,
+    "total": 12051117477436.168,
+    "layer2_total": 12051117477436.168
+  },
+  "global_milestones": 2,
   "infra": {
-    "gpu_gen": 2,
-    "racks": { "1": 14, "2": 6 },
-    "energy": { "grid_mw": 20, "ppa": { "mw": 10, "index": 41, "expires_s": 501120 }, "smr": 0, "orbital": 0 },
-    "cloud_enabled": false
+    "gpu_gen": 3,
+    "racks": [
+      17,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "energy": {
+      "grid_mw": 14.285714285714286,
+      "ppa": {
+        "mw": 0,
+        "index": 0,
+        "expires_s": 0
+      },
+      "smr": 0,
+      "orbital": 0
+    },
+    "cloud_enabled": false,
+    "starter_given": true
   },
   "market": {
-    "unlocked_regions": ["us"],
-    "segments": { "free": 0.1, "pro": 0.9, "enterprise": 0.0 },
-    "hype": 0.8,
-    "reputation": 4
+    "unlocked_regions": [],
+    "compliance": [],
+    "segments": {
+      "free": 0,
+      "pro": 1,
+      "enterprise": 0
+    },
+    "hype": 0,
+    "reputation": 0,
+    "opened_s": 8460
   },
   "training": {
-    "models": [
-      { "name": "v4.5 Turbo", "params": 1e9, "tokens": 2e10, "benchmark": 61.2, "released_s": 380100, "segment": "pro" }
-    ],
-    "queue": [
-      { "params": 3e9, "tokens": 6e10, "cluster_share": 0.3, "progress": 0.27, "arch": ["moe"] }
-    ],
-    "data_tokens": 9.1e10
+    "models": null,
+    "queue": null,
+    "data_tokens": 0,
+    "synthetic_tokens": 0,
+    "synthetic_share": 0,
+    "scrapers": 0,
+    "licenses": 0,
+    "released": 0,
+    "scraper_pause_until_s": 0,
+    "pending_releases": null,
+    "archive": null
   },
-  "talent": [
-    { "class": "senior", "name": "Ola", "trait": null },
-    { "class": "star", "name": "Igor", "trait": "perfectionist" }
+  "talent": [],
+  "poach": {
+    "active": false,
+    "index": 0,
+    "ends_at_s": 0
+  },
+  "incident": {
+    "id": "",
+    "ends_at_s": 0
+  },
+  "investors": {
+    "quarter_end_s": 0,
+    "start_total": 0,
+    "target": 0,
+    "last_revenue": 0,
+    "bonus": 0,
+    "day": 0,
+    "day_totals": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "contracts": [],
+  "contract_offers": [],
+  "contract_seq": 0,
+  "next_offer_s": 0,
+  "cards": {
+    "batch_norm": 1,
+    "beam_search": 4,
+    "chinchilla": 1,
+    "data_augmentation": 1,
+    "grad_clipping": 1,
+    "green_ai": 1,
+    "instruct_gpt": 1,
+    "lr_warmup": 1,
+    "rag_paper": 1,
+    "relu": 2,
+    "residual": 1,
+    "weight_decay": 2
+  },
+  "rules": [],
+  "prestige": {
+    "params": 0,
+    "params_lifetime": 0,
+    "capital": 0,
+    "capital_lifetime": 0,
+    "round_start_s": 0,
+    "version_index": 0,
+    "round_index": 0,
+    "resets_l1": 0,
+    "resets_l2": 0,
+    "run_start_s": 0,
+    "round_mult": 0
+  },
+  "agi": {
+    "stage": 0,
+    "invested": 0,
+    "train_ends_s": 0,
+    "ended_s": 0,
+    "si_level": 0,
+    "si_records": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "streak": {
+    "day": 1,
+    "last_claim": "2026-10-30"
+  },
+  "random_event": {
+    "active_id": "conference",
+    "ends_at_s": 32460,
+    "next_at_s": 32337.52566575566
+  },
+  "achievements": [
+    "first_purchase",
+    "first_crit",
+    "first_manager",
+    "biz_100",
+    "lifetime_1m",
+    "first_card",
+    "global_ms",
+    "lifetime_1b",
+    "infra",
+    "managers_6",
+    "first_event",
+    "card_collector_1",
+    "lifetime_1t",
+    "market",
+    "rank_1"
   ],
-  "contracts": [
-    { "id": "c-0017", "volume": 4.2e17, "delivered": 1.1e17, "min_benchmark": 50, "deadline_s": 414100, "reward_minutes": 35 }
-  ],
-  "research": ["eff_1", "scale_1", "scale_2"],
-  "cards": { "dropout": 3, "adam": 1, "rag_paper": 1, "chinchilla": 1 },
-  "rules": [
-    { "if": [["money", ">", "10x_cost:best_roi"]], "then": ["buy", "best_roi", 10], "enabled": true }
-  ],
-  "prestige": { "params": 412, "params_lifetime": 1880, "capital": 0, "version_index": 6, "round_index": 0, "resets_l1": 6, "resets_l2": 0 },
-  "agi": { "stage": 0, "invested": 0 },
-  "streak": { "day": 4, "last_claim": "2026-10-30" },
-  "achievements": ["first_manager", "first_prestige", "first_crit", "card_collector_1"],
-  "settings": { "advisor": true, "notation": "letters", "colorblind": false, "bell": false },
-  "stats": { "play_s": 18234, "offline_s": 394699, "crits": 312, "best_combo": 3.8, "events_caught": 41 }
+  "settings": {
+    "lang": "",
+    "notation": "letters",
+    "advisor": true,
+    "colorblind": false,
+    "bell": false
+  },
+  "stats": {
+    "play_s": 3600,
+    "offline_s": 28800,
+    "crits": 895,
+    "best_combo": 0,
+    "events_caught": 1,
+    "purchases": 301,
+    "manual_starts": 684,
+    "boost_presses": 0,
+    "events_seen": 107,
+    "events_missed": 1,
+    "cards_dropped": 17,
+    "grants": 1,
+    "best_income": 4727406294.198069,
+    "models": 0,
+    "best_benchmark": 0,
+    "scraper_incidents": 0,
+    "hired": 0,
+    "poached": 0,
+    "retained": 0,
+    "contracts_done": 0,
+    "contracts_failed": 0,
+    "research_done": 0,
+    "rules_fired": 0,
+    "incidents_seen": 0,
+    "incidents_handled": 0,
+    "incidents_missed": 0,
+    "quarters": 0,
+    "quarters_beaten": 0,
+    "fastest_run_s": 0,
+    "agi_invested": 0
+  }
 }

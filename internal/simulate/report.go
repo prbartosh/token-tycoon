@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 
@@ -49,21 +50,20 @@ type Check struct {
 	NA   bool
 }
 
-func Checks(r *Result, c *i18n.Catalog) []Check {
-	dur := func(t float64) string {
-		if t < 0 {
-			return c.T("report.not_reached")
-		}
-		return format.Duration(t)
-	}
+func Checks(r *Result, b *balance.Balance, c *i18n.Catalog) []Check {
+	pc := &b.Pacing
 	var out []Check
 	out = append(out, Check{
-		Text: c.T("report.crit.flat", format.Duration(r.LongestFlat), format.Duration(r.LongestFlatAt)),
-		Pass: r.LongestFlat <= 120,
+		Text: c.T("report.crit2.flat", format.Duration(pc.FlatMaxS), format.Duration(r.LongestFlat), format.Duration(r.LongestFlatAt)),
+		Pass: r.LongestFlat <= pc.FlatMaxS,
 	})
-	out = append(out, window(c.T("report.crit.manager", dur(r.FirstManagerT)), r.FirstManagerT, 30, 60, r.Config.Duration))
-	out = append(out, window(c.T("report.crit.infra", dur(r.InfraT)), r.InfraT, 20*60, 30*60, r.Config.Duration))
-	out = append(out, window(c.T("report.crit.prestige", dur(r.PrestigeT)), r.PrestigeT, 45*60, 90*60, r.Config.Duration))
+	play := r.Final.Stats.PlayS
+	design := r.Config.Strategy == Greedy
+	out = append(out, playWindow(c, "report.crit2.manager", r.ManagerPlayS, pc.FirstManagerS, 1, play))
+	if design {
+		out = append(out, playWindow(c, "report.crit2.infra", r.InfraPlayS, pc.InfraMin, 60, play))
+		out = append(out, playWindow(c, "report.crit2.prestige", r.PrestigePlayS, pc.PrestigeMin, 60, play))
+	}
 	order := Check{Text: c.T("report.crit.order")}
 	switch {
 	case r.PrestigeT >= 0:
@@ -72,26 +72,120 @@ func Checks(r *Result, c *i18n.Catalog) []Check {
 		order.NA = true
 	}
 	out = append(out, order)
-	if len(r.Sessions) > 0 {
+	if len(r.Sessions) > 1 {
 		ok := 0
-		for _, s := range r.Sessions {
-			if s.FirstUnlockT >= 0 && s.FirstUnlockT <= 300 {
+		for _, s := range r.Sessions[1:] {
+			if s.FirstUnlockT >= 0 && s.FirstUnlockT <= pc.SessionNewS {
 				ok++
 			}
 		}
-		out = append(out, Check{Text: c.T("report.crit.session", ok, len(r.Sessions)), Pass: ok == len(r.Sessions)})
+		out = append(out, Check{Text: c.T("report.crit2.session", format.Duration(pc.SessionNewS), ok, len(r.Sessions)-1), Pass: ok == len(r.Sessions)-1})
 	}
-	return out
+	if !design {
+		if r.Config.Strategy == Passive {
+			out = append(out, dayWindow(c, "report.crit2.end_passive", r.EndingT, pc.PassiveEndDays, r.Config.Duration))
+		}
+		return out
+	}
+	days := int(math.Ceil(r.Config.Duration/86400 - 1e-9))
+	if last := min(days, pc.GoalUntilDay); last > 0 {
+		var missing []string
+		for d := 1; d <= last; d++ {
+			if !r.goalOnDay(d) {
+				missing = append(missing, strconv.Itoa(d))
+			}
+		}
+		out = append(out, Check{Text: c.T("report.crit2.goals", last, listOr(missing, c)), Pass: len(missing) == 0})
+	}
+	if bands := r.bandMisses(pc); bands.checked > 0 {
+		out = append(out, Check{Text: c.T("report.crit2.bands", format.Number(pc.IncomeToleranceOOM, format.Letters), bands.checked, listOr(bands.misses, c)),
+			Pass: len(bands.misses) == 0})
+	}
+	out = append(out, dayWindow(c, "report.crit2.funding", r.Layer2T, pc.FundingDays, r.Config.Duration))
+	out = append(out, dayWindow(c, "report.crit2.agi", r.AGIT, pc.AGIDays, r.Config.Duration))
+	return append(out, dayWindow(c, "report.crit2.end_greedy", r.EndingT, pc.GreedyEndDays, r.Config.Duration))
 }
 
-func window(text string, t, lo, hi, duration float64) Check {
-	if t < 0 {
-		if duration > hi {
-			return Check{Text: text}
-		}
-		return Check{Text: text, NA: true}
+func listOr(xs []string, c *i18n.Catalog) string {
+	if len(xs) == 0 {
+		return c.T("report.none")
 	}
-	return Check{Text: text, Pass: t >= lo && t <= hi}
+	return strings.Join(xs, ", ")
+}
+
+func playWindow(c *i18n.Catalog, key string, t float64, win []float64, unit, playS float64) Check {
+	lo, hi := win[0]*unit, win[1]*unit
+	measured := c.T("report.not_reached")
+	if t >= 0 {
+		measured = format.Duration(t)
+	}
+	ch := Check{Text: c.T(key, format.Duration(lo), format.Duration(hi), measured)}
+	switch {
+	case t >= 0:
+		ch.Pass = t >= lo && t <= hi
+	case playS <= hi:
+		ch.NA = true
+	}
+	return ch
+}
+
+func dayWindow(c *i18n.Catalog, key string, t float64, win []float64, duration float64) Check {
+	measured := c.T("report.not_reached")
+	if t >= 0 {
+		measured = c.T("report.day_n", dayOf(t))
+	}
+	ch := Check{Text: c.T(key, int(win[0]), int(win[1]), measured)}
+	switch {
+	case t >= 0:
+		d := float64(dayOf(t))
+		ch.Pass = d >= win[0] && d <= win[1]
+	case duration < win[1]*86400:
+		ch.NA = true
+	}
+	return ch
+}
+
+func dayOf(t float64) int { return int(t/86400) + 1 }
+
+func (r *Result) goalOnDay(d int) bool {
+	for _, g := range r.Goals {
+		if dayOf(g.T) == d {
+			return true
+		}
+	}
+	return false
+}
+
+type bandResult struct {
+	checked int
+	misses  []string
+}
+
+func (r *Result) bandMisses(pc *balance.Pacing) bandResult {
+	var br bandResult
+	full := int(r.Config.Duration/86400 + 1e-9)
+	for i, inc := range r.DayIncome {
+		d := i + 1
+		if d > full {
+			break
+		}
+		for _, band := range pc.IncomeBands {
+			if float64(d) < band[0] || float64(d) > band[1] {
+				continue
+			}
+			br.checked++
+			lo, hi := band[2]-pc.IncomeToleranceOOM, band[3]+pc.IncomeToleranceOOM
+			l := math.Inf(-1)
+			if inc > 0 {
+				l = math.Log10(inc)
+			}
+			if l < lo || l > hi {
+				br.misses = append(br.misses, fmt.Sprintf("%d (%.0f)", d, math.Max(-1, l)))
+			}
+			break
+		}
+	}
+	return br
 }
 
 func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
@@ -101,8 +195,8 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 	p := func(format string, a ...any) { fmt.Fprintf(w, format, a...) }
 	p("%s\n%s\n", c.T("report.title"), strings.Repeat("=", len([]rune(c.T("report.title")))))
 	p("%s\n", c.T("report.strategy", cfg.Strategy, cfg.Seed, format.Duration(cfg.Duration)))
-	if cfg.Strategy == Passive {
-		p("%s\n", c.T("report.sessions", format.Duration(cfg.SessionS), format.Number(b.Offline.EfficiencyStart, n)))
+	if r.SessionsDay > 0 {
+		p("%s\n", c.T("report.sessions2", r.SessionsDay, format.Duration(r.SessionS), format.Number(b.Offline.EfficiencyStart, n)))
 		p("%s\n", c.T("report.offline_total", format.Duration(r.OfflineS), format.Number(r.OfflineEarned, n)))
 	}
 	if cfg.ComboRate > 0 {
@@ -228,16 +322,17 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 		}
 		p("  %-44s %s\n", label, v)
 	}
+	th := func(u sim.Unlock) string { return format.Number(sim.UnlockThreshold(u, b), format.Scientific) }
 	tl(c.T("report.first_manager"), r.FirstManagerT)
-	tl(c.T("report.infra"), r.InfraT)
-	tl(c.T("report.prestige"), r.PrestigeT)
+	tl(c.T("report.infra", th(sim.UnlockInfra)), r.InfraT)
+	tl(c.T("report.prestige", format.Number(b.Prestige.Layer1.UnlockRunRevenue, format.Scientific)), r.PrestigeT)
 	first := -1.0
 	if len(r.Prestiges) > 0 {
 		first = r.Prestiges[0].T
 	}
 	tl(c.T("report.first_reset"), first)
-	tl(c.T("report.market_unlock"), r.MarketT)
-	tl(c.T("report.training_unlock"), r.TrainingT)
+	tl(c.T("report.market_unlock", th(sim.UnlockMarket)), r.MarketT)
+	tl(c.T("report.training_unlock", th(sim.UnlockTraining)), r.TrainingT)
 	firstModel := -1.0
 	for _, md := range r.Models {
 		if md.T >= 0 {
@@ -246,14 +341,14 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 		}
 	}
 	tl(c.T("report.first_model"), firstModel)
-	tl(c.T("report.layer2_unlock"), r.Layer2T)
+	tl(c.T("report.layer2_unlock", th(sim.UnlockLayer2)), r.Layer2T)
 	firstRound := -1.0
 	if len(r.Rounds) > 0 {
 		firstRound = r.Rounds[0].T
 	}
 	tl(c.T("report.first_round"), firstRound)
-	tl(c.T("report.regions_unlock"), r.RegionsT)
-	tl(c.T("report.agi_unlock"), r.AGIT)
+	tl(c.T("report.regions_unlock", th(sim.UnlockRegions)), r.RegionsT)
+	tl(c.T("report.agi_unlock", th(sim.UnlockAGI)), r.AGIT)
 	for i, t := range r.AGIStages {
 		if i < len(b.AGIStages) {
 			tl(c.T("report.agi_stage", i+1, c.T(i18n.AGIKey(b.AGIStages[i].ID))), t)
@@ -264,9 +359,20 @@ func Report(w io.Writer, r *Result, b *balance.Balance, c *i18n.Catalog) int {
 	for _, u := range r.Unlocks {
 		p("  %-10s %s\n", format.Duration(u.T), unlockName(u.Unlock, b, c))
 	}
-	p("\n%s\n", c.T("report.criteria"))
+	if len(r.DayIncome) > 0 {
+		days := make([]string, 0, len(r.DayIncome))
+		for i, inc := range r.DayIncome {
+			l := "-"
+			if inc > 0 {
+				l = strconv.FormatFloat(math.Log10(inc), 'f', 0, 64)
+			}
+			days = append(days, fmt.Sprintf("%d:%s", i+1, l))
+		}
+		p("\n%s\n  %s\n", c.T("report.day_income"), strings.Join(days, " "))
+	}
+	p("\n%s\n", c.T("report.criteria2"))
 	fails := 0
-	for _, ch := range Checks(r, c) {
+	for _, ch := range Checks(r, b, c) {
 		mark := c.T("report.pass")
 		switch {
 		case ch.NA:

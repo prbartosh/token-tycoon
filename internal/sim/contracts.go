@@ -139,14 +139,6 @@ func tickContracts(s *State, b *balance.Balance, dt, _ float64, out []Event, md 
 	return append(out, Event{Kind: EvContractOffer, Business: -1, Index: len(s.Offers) - 1, Count: s.ContractSeq})
 }
 
-func ContractRate(s *State, c *Contract) float64 {
-	left := c.DeadlineS - s.Clock
-	if !(left > 0) {
-		return math.Inf(1)
-	}
-	return math.Max(0, c.Volume-c.Delivered) / left
-}
-
 func normalizeContracts(s *State, b *balance.Balance) {
 	clean := func(cs []Contract) []Contract {
 		keep := cs[:0]

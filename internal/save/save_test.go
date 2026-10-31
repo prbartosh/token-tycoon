@@ -147,7 +147,7 @@ func TestMigrateV1Example(t *testing.T) {
 	if s.Infra.Racks[0] != 14 || s.Infra.Racks[1] != 6 || s.Infra.GPUGen != 4 || !s.Infra.StarterGiven {
 		t.Fatalf("racks: %+v", s.Infra)
 	}
-	if !s.IsUnlocked(sim.UnlockMarket) || !s.IsUnlocked(sim.UnlockTraining) || s.IsUnlocked(sim.UnlockContracts) {
+	if !s.IsUnlocked(sim.UnlockMarket) || !s.IsUnlocked(sim.UnlockTraining) || s.IsUnlocked(sim.UnlockRules) {
 		t.Fatal("unlocks not rebuilt from lifetime revenue")
 	}
 	if s.Talent[1].Trait != "perfectionist" || s.Prestige.Params != 412 || s.Cards["dropout"] != 3 || s.Prestige.RunStartS != s.Clock {
@@ -229,7 +229,7 @@ func TestRotationKeepsPreviousAsBackup(t *testing.T) {
 func TestMigrateV2(t *testing.T) {
 	b := balance.Default()
 	v2 := `{"version":2,"saved_at":"2026-10-30T10:00:00Z","seed":7,"clock_s":5000,"money":10,
-"lifetime":{"run":2e7,"total":2e7,"layer2_total":2e7},
+"lifetime":{"run":3e9,"total":3e9,"layer2_total":3e9},
 "businesses":[{"id":"api_wrapper","owned":40,"manager":true}],
 "upgrades":[],"unlocks":[],
 "infra":{"gpu_gen":0,"racks":[0,0,0,0,0,0,0,0],"energy":{"grid_mw":0,"ppa":{"mw":0,"index":0,"expires_s":0},"smr":0,"orbital":0},"cloud_enabled":false,"starter_given":false},

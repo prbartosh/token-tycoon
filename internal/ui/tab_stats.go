@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"strconv"
 
 	"token-tycoon/internal/balance"
@@ -24,6 +25,18 @@ func (m *Model) statsRows(t *tabList) {
 		}
 	}
 	row := func(key, val string) { t.text(m.statLabel(key) + th.Text.Render(val)) }
+	m.incomeChart(t)
+	t.blank()
+	m.section(t, m.cat.T("ui.sec.records"))
+	row("ui.stats.peak_income", format.Rate(math.Max(m.hist.peak, s.Stats.BestIncome), m.notation()))
+	row("ui.stats.best_combo", "x"+format.Number(max(1, s.Stats.BestCombo), format.Letters))
+	row("ui.stats.best_bench", fixed(s.Stats.BestBench, 1))
+	if s.Stats.FastestRunS > 0 {
+		row("ui.stats.fastest_run", format.Duration(s.Stats.FastestRunS))
+	}
+	row("ui.stats.streak", m.cat.T("ui.stats.streak_days", s.Streak.Day))
+	t.blank()
+	m.section(t, m.cat.T("ui.sec.totals"))
 	row("ui.stats.play", format.Duration(s.Stats.PlayS))
 	row("ui.stats.offline", format.Duration(s.Stats.OfflineS))
 	row("ui.stats.lifetime", m.money(s.Lifetime.Total))
@@ -33,7 +46,6 @@ func (m *Model) statsRows(t *tabList) {
 	row("ui.stats.upgrades", strconv.Itoa(s.Upgrades.Count())+"/"+strconv.Itoa(len(m.b.Upgrades)))
 	row("ui.stats.purchases", strconv.Itoa(s.Stats.Purchases))
 	row("ui.stats.crits", strconv.Itoa(s.Stats.Crits))
-	row("ui.stats.best_combo", "x"+format.Number(max(1, s.Stats.BestCombo), format.Letters))
 	row("ui.stats.boosts", strconv.Itoa(s.Stats.BoostPresses))
 	row("ui.stats.manual", strconv.Itoa(s.Stats.ManualStarts))
 	row("ui.stats.version", sim.VersionName(m.b, s.Prestige.VersionIndex))
@@ -42,7 +54,6 @@ func (m *Model) statsRows(t *tabList) {
 	row("ui.stats.events", strconv.Itoa(s.Stats.EventsCaught)+" / "+strconv.Itoa(s.Stats.EventsMissed)+" / "+strconv.Itoa(s.Stats.EventsSeen))
 	row("ui.stats.grants", m.cat.T("ui.stats.streak_val", s.Stats.Grants, s.Streak.Day))
 	row("ui.stats.models", strconv.Itoa(s.Stats.Models))
-	row("ui.stats.best_bench", fixed(s.Stats.BestBench, 1))
 	if s.IsUnlocked(sim.UnlockTalent) {
 		row("ui.stats.talent", m.cat.T("ui.stats.talent_val", s.Stats.Hired, s.Stats.Retained, s.Stats.Poached))
 	}
@@ -51,6 +62,7 @@ func (m *Model) statsRows(t *tabList) {
 	}
 	if s.IsUnlocked(sim.UnlockLayer2) {
 		row("ui.stats.rounds", strconv.Itoa(s.Prestige.ResetsL2))
+		row("ui.stats.round_mult", "x"+m.num(sim.RoundBonus(s)))
 		row("ui.stats.capital", m.num(s.Prestige.CapitalLifetime))
 		row("ui.stats.research", strconv.Itoa(s.Research.Done.Count())+"/"+strconv.Itoa(len(m.b.ResearchNodes)))
 	}

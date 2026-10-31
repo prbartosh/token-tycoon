@@ -102,6 +102,7 @@ var uiEN = map[string]string{
 	"ui.stats.manual":     "Manual cycles",
 
 	"cli.flag.no_color":          "disable colors",
+	"cli.flag.version":           "print version and exit",
 	"cli.flag.debug":             "debug mode: indented save, frame rate in the header",
 	"ui.infra.compute":           "Compute",
 	"ui.infra.energy":            "Energy",

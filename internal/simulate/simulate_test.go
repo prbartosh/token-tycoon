@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 func TestParse(t *testing.T) {

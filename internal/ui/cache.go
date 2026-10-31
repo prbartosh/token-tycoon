@@ -3,7 +3,7 @@ package ui
 import (
 	"math"
 
-	"token-tycoon/internal/format"
+	"github.com/prbartosh/token-tycoon/internal/format"
 )
 
 const numSlots = 512

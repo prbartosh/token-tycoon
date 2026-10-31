@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 func m5State(t testing.TB, b *balance.Balance) State {

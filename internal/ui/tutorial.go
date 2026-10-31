@@ -5,8 +5,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"token-tycoon/internal/format"
-	"token-tycoon/internal/ui/widgets"
+	"github.com/prbartosh/token-tycoon/internal/format"
+	"github.com/prbartosh/token-tycoon/internal/ui/widgets"
 )
 
 type anchor uint8

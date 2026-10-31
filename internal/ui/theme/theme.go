@@ -9,7 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 const (

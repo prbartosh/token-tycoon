@@ -7,10 +7,10 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"token-tycoon/internal/format"
-	"token-tycoon/internal/ui/anim"
-	"token-tycoon/internal/ui/theme"
-	"token-tycoon/internal/ui/widgets"
+	"github.com/prbartosh/token-tycoon/internal/format"
+	"github.com/prbartosh/token-tycoon/internal/ui/anim"
+	"github.com/prbartosh/token-tycoon/internal/ui/theme"
+	"github.com/prbartosh/token-tycoon/internal/ui/widgets"
 )
 
 const helpKeyW = 14

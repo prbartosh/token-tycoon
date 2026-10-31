@@ -1,8 +1,8 @@
 package sim
 
 import (
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/cards"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/cards"
 )
 
 func dropCard(s *State, b *balance.Balance, out []Event) []Event {

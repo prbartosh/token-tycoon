@@ -4,10 +4,10 @@ import (
 	"math"
 	"strconv"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/econ"
-	"token-tycoon/internal/market"
-	"token-tycoon/internal/training"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/econ"
+	"github.com/prbartosh/token-tycoon/internal/market"
+	"github.com/prbartosh/token-tycoon/internal/training"
 )
 
 type TrainView struct {

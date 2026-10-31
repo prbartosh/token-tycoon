@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"time"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/paths"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/paths"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 const CurrentVersion = 8

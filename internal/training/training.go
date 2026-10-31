@@ -6,7 +6,7 @@ package training
 import (
 	"math"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 func ExcessLoss(n, d, arch float64, t *balance.Training) float64 {

@@ -7,9 +7,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"token-tycoon/internal/format"
-	"token-tycoon/internal/sim"
-	"token-tycoon/internal/ui/widgets"
+	"github.com/prbartosh/token-tycoon/internal/format"
+	"github.com/prbartosh/token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/ui/widgets"
 )
 
 type act uint8

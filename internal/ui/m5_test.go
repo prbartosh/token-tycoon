@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 func m5Game(c *Config) {

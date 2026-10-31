@@ -12,13 +12,13 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/format"
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
-	"token-tycoon/internal/ui/anim"
-	"token-tycoon/internal/ui/theme"
-	"token-tycoon/internal/ui/widgets"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/format"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/ui/anim"
+	"github.com/prbartosh/token-tycoon/internal/ui/theme"
+	"github.com/prbartosh/token-tycoon/internal/ui/widgets"
 )
 
 type Config struct {

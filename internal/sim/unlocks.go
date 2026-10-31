@@ -3,7 +3,7 @@ package sim
 import (
 	"strconv"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 type Unlock uint8

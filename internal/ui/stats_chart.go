@@ -4,8 +4,8 @@ import (
 	"math"
 	"strings"
 
-	"token-tycoon/internal/format"
-	"token-tycoon/internal/ui/widgets"
+	"github.com/prbartosh/token-tycoon/internal/format"
+	"github.com/prbartosh/token-tycoon/internal/ui/widgets"
 )
 
 const (

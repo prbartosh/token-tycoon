@@ -3,10 +3,10 @@ package sim
 import (
 	"math"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/cards"
-	"token-tycoon/internal/econ"
-	"token-tycoon/internal/infra"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/cards"
+	"github.com/prbartosh/token-tycoon/internal/econ"
+	"github.com/prbartosh/token-tycoon/internal/infra"
 )
 
 const (

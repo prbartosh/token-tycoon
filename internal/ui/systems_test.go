@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 var missingKey = regexp.MustCompile(`![a-z_]+\.[a-z_]`)

@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/rng"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/rng"
 )
 
 var migrations = map[int]func(raw map[string]any) error{

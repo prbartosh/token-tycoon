@@ -1,0 +1,56 @@
+version: 2
+project_name: token-tycoon
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - main: ./cmd/token-tycoon
+    binary: token-tycoon
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+release:
+  github:
+    owner: prbartosh
+    name: token-tycoon-releases
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+
+brews:
+  - name: token-tycoon
+    repository:
+      owner: prbartosh
+      name: homebrew-tap
+      token: "{{ .Env.RELEASE_TOKEN }}"
+    homepage: https://prbartosh.github.io/token-tycoon-releases/
+    description: Terminal idle tycoon about building an AI company
+    license: Proprietary
+    install: |
+      bin.install "token-tycoon"
+    test: |
+      system "#{bin}/token-tycoon", "--version"

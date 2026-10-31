@@ -5,7 +5,7 @@ package infra
 import (
 	"math"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 const day = 86400.0

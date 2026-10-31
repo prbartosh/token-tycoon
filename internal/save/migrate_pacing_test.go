@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 func TestMigrateV7(t *testing.T) {

@@ -8,9 +8,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
-	"token-tycoon/internal/ui/widgets"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/ui/widgets"
 )
 
 type palCmd uint8

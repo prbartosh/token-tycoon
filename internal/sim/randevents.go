@@ -4,7 +4,7 @@ import (
 	"math"
 	"strings"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 func activeEvent(s *State, b *balance.Balance) int {

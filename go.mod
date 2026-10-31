@@ -1,4 +1,4 @@
-module token-tycoon
+module github.com/prbartosh/token-tycoon
 
 go 1.27.3
 

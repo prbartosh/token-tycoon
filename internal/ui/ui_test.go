@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 type clock struct{ t time.Time }

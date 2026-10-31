@@ -5,8 +5,8 @@
 package sim
 
 import (
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/market"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/market"
 )
 
 const (

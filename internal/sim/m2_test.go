@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/infra"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/infra"
 )
 
 func unlockAll(s *State, upTo Unlock) {

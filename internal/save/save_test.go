@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/rng"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/rng"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 var at = time.Date(2026, 10, 30, 14, 22, 5, 0, time.UTC)

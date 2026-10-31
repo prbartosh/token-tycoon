@@ -3,8 +3,8 @@ package ui
 import (
 	"strconv"
 
-	"token-tycoon/internal/sim"
-	"token-tycoon/internal/ui/widgets"
+	"github.com/prbartosh/token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/ui/widgets"
 )
 
 func (m *Model) usageText(need, avail float64) string {

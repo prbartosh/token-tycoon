@@ -3,9 +3,9 @@ package ui
 import (
 	"strconv"
 
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/market"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/market"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 type headline struct {

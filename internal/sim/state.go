@@ -7,9 +7,9 @@ import (
 	"math"
 	"math/bits"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/cards"
-	"token-tycoon/internal/rng"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/cards"
+	"github.com/prbartosh/token-tycoon/internal/rng"
 )
 
 const N = balance.MaxBusinesses

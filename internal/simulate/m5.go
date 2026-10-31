@@ -1,7 +1,7 @@
 package simulate
 
 import (
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 const agiHorizonS = 2 * 3600

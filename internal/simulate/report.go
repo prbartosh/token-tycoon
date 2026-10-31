@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/econ"
-	"token-tycoon/internal/format"
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/econ"
+	"github.com/prbartosh/token-tycoon/internal/format"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 func WriteCSV(w io.Writer, r *Result, b *balance.Balance) error {

@@ -3,8 +3,8 @@ package ui
 import (
 	"math"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 type rowKind uint8

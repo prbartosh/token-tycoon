@@ -102,6 +102,7 @@ var uiPL = map[string]string{
 	"ui.stats.manual":     "Ręczne cykle",
 
 	"cli.flag.no_color":          "wyłącz kolory",
+	"cli.flag.version":           "pokaż wersję i zakończ",
 	"cli.flag.debug":             "tryb debug: zapis z wcięciami, liczba klatek w nagłówku",
 	"ui.infra.compute":           "Compute",
 	"ui.infra.energy":            "Energia",

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 func TestFormulas(t *testing.T) {

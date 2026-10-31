@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/econ"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/econ"
 )
 
 type PrestigePreview struct {

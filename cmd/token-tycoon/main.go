@@ -14,13 +14,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/save"
-	"token-tycoon/internal/sim"
-	"token-tycoon/internal/simulate"
-	"token-tycoon/internal/ui"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/save"
+	"github.com/prbartosh/token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/simulate"
+	"github.com/prbartosh/token-tycoon/internal/ui"
 )
+
+var version = "dev"
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
@@ -40,12 +42,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 	ci := fs.Bool("ci", false, cat.T("cli.flag.ci"))
 	noColor := fs.Bool("no-color", false, cat.T("cli.flag.no_color"))
 	debug := fs.Bool("debug", false, cat.T("cli.flag.debug"))
+	showVersion := fs.Bool("version", false, cat.T("cli.flag.version"))
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, cat.T("cli.usage"))
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if *showVersion {
+		fmt.Fprintln(stdout, "token-tycoon", version)
+		return 0
 	}
 
 	var b *balance.Balance

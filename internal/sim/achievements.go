@@ -3,7 +3,7 @@ package sim
 import (
 	"math"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 type AchievementDef struct {

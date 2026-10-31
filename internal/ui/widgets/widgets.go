@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"token-tycoon/internal/ui/theme"
+	"github.com/prbartosh/token-tycoon/internal/ui/theme"
 )
 
 var eighths = [8]string{"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"}

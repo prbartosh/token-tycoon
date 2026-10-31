@@ -11,7 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"token-tycoon/internal/ui"
+	"github.com/prbartosh/token-tycoon/internal/ui"
 )
 
 func stubProgram(t *testing.T, drive func(m *ui.Model) *ui.Model) {

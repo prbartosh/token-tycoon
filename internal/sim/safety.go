@@ -4,7 +4,7 @@ import (
 	"math"
 	"strings"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 type Incident struct {

@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/market"
-	"token-tycoon/internal/training"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/market"
+	"github.com/prbartosh/token-tycoon/internal/training"
 )
 
 func m3State(t testing.TB, b *balance.Balance) State {

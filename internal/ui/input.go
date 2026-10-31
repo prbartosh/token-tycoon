@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

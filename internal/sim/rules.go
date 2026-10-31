@@ -3,8 +3,8 @@ package sim
 import (
 	"math"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/market"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/market"
 )
 
 type Cond struct {

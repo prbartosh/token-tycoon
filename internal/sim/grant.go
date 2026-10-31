@@ -1,6 +1,6 @@
 package sim
 
-import "token-tycoon/internal/balance"
+import "github.com/prbartosh/token-tycoon/internal/balance"
 
 func civilDays(date string) (int, bool) {
 	if len(date) != 10 || date[4] != '-' || date[7] != '-' {

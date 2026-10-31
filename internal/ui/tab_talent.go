@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
-	"token-tycoon/internal/ui/widgets"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/ui/widgets"
 )
 
 func (m *Model) traitName(id string) string {

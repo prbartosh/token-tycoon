@@ -11,7 +11,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
-	"token-tycoon/internal/paths"
+	"github.com/prbartosh/token-tycoon/internal/paths"
 )
 
 //go:embed balance.toml

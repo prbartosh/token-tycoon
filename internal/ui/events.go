@@ -3,10 +3,10 @@ package ui
 import (
 	"strconv"
 
-	"token-tycoon/internal/format"
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/sim"
-	"token-tycoon/internal/ui/anim"
+	"github.com/prbartosh/token-tycoon/internal/format"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/ui/anim"
 )
 
 const (

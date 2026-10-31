@@ -3,8 +3,8 @@ package simulate
 import (
 	"math"
 
-	"token-tycoon/internal/market"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/market"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 const (

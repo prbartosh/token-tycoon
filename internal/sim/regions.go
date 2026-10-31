@@ -4,7 +4,7 @@ import (
 	"math"
 	"slices"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 func RegionEntered(s *State, b *balance.Balance, i int) bool {

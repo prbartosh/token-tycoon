@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"token-tycoon/internal/ui/theme"
+	"github.com/prbartosh/token-tycoon/internal/ui/theme"
 )
 
 func TestBar(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 func TestCatalogsHaveIdenticalKeys(t *testing.T) {

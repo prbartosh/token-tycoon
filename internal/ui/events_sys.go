@@ -4,11 +4,11 @@ import (
 	"strconv"
 	"strings"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/i18n"
-	"token-tycoon/internal/market"
-	"token-tycoon/internal/sim"
-	"token-tycoon/internal/ui/anim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/i18n"
+	"github.com/prbartosh/token-tycoon/internal/market"
+	"github.com/prbartosh/token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/ui/anim"
 )
 
 func (m *Model) eventName(i int) string {

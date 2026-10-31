@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/colorprofile"
 
-	"token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/balance"
 )
 
 func TestProfiles(t *testing.T) {

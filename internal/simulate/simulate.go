@@ -14,8 +14,8 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"token-tycoon/internal/balance"
-	"token-tycoon/internal/sim"
+	"github.com/prbartosh/token-tycoon/internal/balance"
+	"github.com/prbartosh/token-tycoon/internal/sim"
 )
 
 const (
